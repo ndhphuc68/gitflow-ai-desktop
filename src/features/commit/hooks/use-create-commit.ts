@@ -15,10 +15,15 @@ export function useCreateCommit(input: UseCreateCommitInput) {
         repositoryPath: input.repositoryPath ?? "",
         message,
       }),
-    onSettled: async () => {
-      await queryClient.invalidateQueries({
-        queryKey: ["repository-status", input.repositoryPath],
-      });
+    onSuccess: async () => {
+      await Promise.all([
+        queryClient.refetchQueries({
+          queryKey: ["repository-status", input.repositoryPath],
+        }),
+        queryClient.refetchQueries({
+          queryKey: ["repository-history", input.repositoryPath],
+        }),
+      ]);
     },
   });
 }

@@ -1,5 +1,6 @@
 use std::path::Path;
 use std::process::Command;
+use std::process::Output;
 use std::process::Stdio;
 use std::time::Duration;
 use wait_timeout::ChildExt;
@@ -29,6 +30,31 @@ impl GitExecutor {
         args: &[&str],
         timeout: Duration,
     ) -> Result<String, GitExecutorError> {
+        let output = Self::run_output(current_dir, args, timeout)?;
+        let stdout = String::from_utf8_lossy(&output.stdout)
+            .trim_end_matches(['\r', '\n'])
+            .to_string();
+        Ok(stdout)
+    }
+
+    pub fn run_with_timeout_utf8_stdout(
+        current_dir: &Path,
+        args: &[&str],
+        timeout: Duration,
+    ) -> Result<String, GitExecutorError> {
+        let output = Self::run_output(current_dir, args, timeout)?;
+        let stdout = String::from_utf8(output.stdout).map_err(|_| GitExecutorError {
+            kind: GitExecutorErrorKind::CommandFailed,
+            details: Some("Git stdout is not valid UTF-8".to_string()),
+        })?;
+        Ok(stdout.trim_end_matches(['\r', '\n']).to_string())
+    }
+
+    fn run_output(
+        current_dir: &Path,
+        args: &[&str],
+        timeout: Duration,
+    ) -> Result<Output, GitExecutorError> {
         let mut child = Command::new("git")
             .current_dir(current_dir)
             .args(args)
@@ -73,10 +99,7 @@ impl GitExecutor {
         })?;
 
         if exit_status.success() {
-            let stdout = String::from_utf8_lossy(&output.stdout)
-                .trim_end_matches(['\r', '\n'])
-                .to_string();
-            return Ok(stdout);
+            return Ok(output);
         }
 
         let stderr = String::from_utf8_lossy(&output.stderr).trim().to_string();

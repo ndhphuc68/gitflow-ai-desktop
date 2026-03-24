@@ -33,4 +33,6 @@ impl From<Repository> for RepositoryDto {
 pub struct OpenRepositoryResponseDto {
     pub repository: Option<RepositoryDto>,
     pub error: Option<AppErrorDto>,
+    /// Present when the repository opened successfully but saving to recent list failed.
+    pub recents_persist_error: Option<AppErrorDto>,
 }

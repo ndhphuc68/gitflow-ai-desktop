@@ -36,3 +36,17 @@ export const getDiffResponseDtoSchema = z.object({
   files: z.array(diffFileDtoSchema).nullable(),
   error: appErrorSchema.nullable(),
 });
+
+export const commitChangedFileSummaryDtoSchema = z.object({
+  path: z.string(),
+  oldPath: z.string().nullable().optional(),
+  changeType: diffChangeTypeDtoSchema,
+  isBinary: z.boolean(),
+});
+
+export type CommitChangedFileSummaryDto = z.infer<typeof commitChangedFileSummaryDtoSchema>;
+
+export const listCommitChangedFilesResponseDtoSchema = z.object({
+  files: z.array(commitChangedFileSummaryDtoSchema).nullable(),
+  error: appErrorSchema.nullable(),
+});

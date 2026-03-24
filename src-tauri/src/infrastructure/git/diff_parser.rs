@@ -129,6 +129,72 @@ pub fn parse_unified_diff(output: &str) -> Vec<DiffFile> {
     files
 }
 
+/// Parses `git log -1 --name-status` / `git show --name-status` style lines into lightweight [`DiffFile`] records
+/// with empty hunks. Used to list commit paths without loading full patches.
+pub fn parse_git_show_name_status(output: &str) -> Vec<DiffFile> {
+    let mut files: Vec<DiffFile> = Vec::new();
+
+    for raw_line in output.lines() {
+        let line = raw_line.trim_end_matches('\r').trim();
+        if line.is_empty() {
+            continue;
+        }
+
+        let parts = line.split('\t').collect::<Vec<_>>();
+        if parts.len() == 2 {
+            let status = parts[0];
+            let path = parts[1].to_string();
+            if path.is_empty() {
+                continue;
+            }
+            let change_type = map_name_status_letter(status);
+            files.push(DiffFile {
+                path,
+                old_path: None,
+                change_type,
+                is_binary: false,
+                hunks: Vec::new(),
+            });
+            continue;
+        }
+
+        if parts.len() == 3 {
+            let status = parts[0];
+            let old_path = parts[1].to_string();
+            let path = parts[2].to_string();
+            if old_path.is_empty() || path.is_empty() {
+                continue;
+            }
+            let change_type = if status.starts_with('R') || status.starts_with('C') {
+                DiffChangeType::Renamed
+            } else {
+                map_name_status_letter(status)
+            };
+            files.push(DiffFile {
+                path,
+                old_path: Some(old_path),
+                change_type,
+                is_binary: false,
+                hunks: Vec::new(),
+            });
+        }
+    }
+
+    files
+}
+
+fn map_name_status_letter(status: &str) -> DiffChangeType {
+    let first = status.chars().next();
+    match first {
+        Some('A') => DiffChangeType::Added,
+        Some('D') => DiffChangeType::Deleted,
+        Some('R') | Some('C') => DiffChangeType::Renamed,
+        Some('U') => DiffChangeType::Modified,
+        Some('T') => DiffChangeType::Modified,
+        _ => DiffChangeType::Modified,
+    }
+}
+
 fn parse_diff_git_header(line: &str) -> DiffFile {
     let segments = line.split_whitespace().collect::<Vec<_>>();
     let old_path = segments
@@ -166,4 +232,35 @@ fn flush_file(files: &mut Vec<DiffFile>, current_file: &mut Option<DiffFile>) {
         return;
     };
     files.push(file);
+}
+
+#[cfg(test)]
+mod name_status_tests {
+    use super::{parse_git_show_name_status, DiffChangeType};
+
+    #[test]
+    fn parses_added_modified_deleted() {
+        let out = "M\tsrc/foo.rs\nA\tnew.txt\nD\told.bin\n";
+        let files = parse_git_show_name_status(out);
+        assert_eq!(files.len(), 3);
+        assert_eq!(files[0].path, "src/foo.rs");
+        assert_eq!(files[0].change_type, DiffChangeType::Modified);
+        assert_eq!(files[1].change_type, DiffChangeType::Added);
+        assert_eq!(files[2].change_type, DiffChangeType::Deleted);
+    }
+
+    #[test]
+    fn parses_rename_with_score() {
+        let out = "R086\told/name.txt\tnew/name.txt\n";
+        let files = parse_git_show_name_status(out);
+        assert_eq!(files.len(), 1);
+        assert_eq!(files[0].path, "new/name.txt");
+        assert_eq!(files[0].old_path.as_deref(), Some("old/name.txt"));
+        assert_eq!(files[0].change_type, DiffChangeType::Renamed);
+    }
+
+    #[test]
+    fn skips_empty_lines() {
+        assert!(parse_git_show_name_status("\n\n").is_empty());
+    }
 }

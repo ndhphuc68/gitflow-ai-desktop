@@ -1,4 +1,4 @@
-import { DiffFileDto } from "../types/diff-dto";
+import { CommitChangedFileSummaryDto, DiffFileDto } from "../types/diff-dto";
 
 export type DiffChangeType = "modified" | "added" | "deleted" | "renamed" | "binary";
 export type DiffLineType = "context" | "added" | "removed";
@@ -34,6 +34,17 @@ export function toDiffFile(diffFileDto: DiffFileDto): DiffFile {
         content: line.content,
       })),
     })),
+  };
+}
+
+/** Summary row from `list_commit_changed_files` (no hunks until per-file diff loads). */
+export function commitChangedSummaryToDiffFile(summary: CommitChangedFileSummaryDto): DiffFile {
+  return {
+    path: summary.path,
+    oldPath: summary.oldPath ?? null,
+    changeType: mapChangeType(summary.changeType),
+    isBinary: summary.isBinary,
+    hunks: [],
   };
 }
 

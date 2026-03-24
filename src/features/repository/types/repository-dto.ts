@@ -13,6 +13,7 @@ export type RepositoryDto = z.infer<typeof repositoryDtoSchema>;
 export const openRepositoryResponseDtoSchema = z.object({
   repository: repositoryDtoSchema.nullable(),
   error: appErrorSchema.nullable(),
+  recentsPersistError: appErrorSchema.nullable().optional(),
 });
 
 export type OpenRepositoryResponseDto = z.infer<

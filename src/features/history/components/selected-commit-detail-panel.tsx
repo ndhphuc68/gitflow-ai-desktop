@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 
 import { normalizeAppError } from "../../../shared/errors/normalize-app-error";
 import { AppError } from "../../../shared/types/app-error";
@@ -18,6 +18,12 @@ export function SelectedCommitDetailPanel({
   const [revertError, setRevertError] = useState<AppError | null>(null);
   const [revertSuccessMessage, setRevertSuccessMessage] = useState<string | null>(null);
   const revertCommitMutation = useRevertCommit({ repositoryPath });
+
+  useEffect(() => {
+    setIsConfirmOpen(false);
+    setRevertError(null);
+    setRevertSuccessMessage(null);
+  }, [repositoryPath]);
 
   const hasSelectedCommit = Boolean(commit);
   const isReverting = revertCommitMutation.isPending;
@@ -58,49 +64,87 @@ export function SelectedCommitDetailPanel({
       </h2>
 
       {!commit && (
-        <p className="mt-3 text-sm text-zinc-500">
-          Select a commit from the history list to view details.
-        </p>
+        <div
+          className="mt-3 rounded border border-dashed border-zinc-700/80 bg-zinc-950/50 px-3 py-6 text-center"
+          aria-live="polite"
+        >
+          <p className="text-xs font-medium text-zinc-400">No commit selected</p>
+          <p className="mt-1 text-xs text-zinc-500">
+            Choose a row in Commit History to inspect hash, author, parents, and metadata.
+          </p>
+        </div>
       )}
 
       {commit && (
-        <div className="mt-3 space-y-3 text-sm">
-          <div>
-            <p className="text-xs text-zinc-400">Short Hash</p>
-            <p className="text-zinc-100">{commit.shortHash}</p>
-          </div>
-          <div>
-            <p className="text-xs text-zinc-400">Full Hash</p>
-            <p className="break-all text-zinc-100">{commit.hash}</p>
-          </div>
-          <div>
-            <p className="text-xs text-zinc-400">Subject</p>
-            <p className="text-zinc-100">{commit.subject}</p>
-          </div>
-          <div>
-            <p className="text-xs text-zinc-400">Author</p>
-            <p className="text-zinc-100">
-              {commit.authorName} ({commit.authorEmail})
-            </p>
-          </div>
-          <div>
-            <p className="text-xs text-zinc-400">Authored Date</p>
-            <p className="text-zinc-100">{new Date(commit.authoredAt).toLocaleString()}</p>
-          </div>
-          <div>
-            <p className="text-xs text-zinc-400">Parent Hashes ({commit.parentHashes.length})</p>
-            {commit.parentHashes.length === 0 ? (
-              <p className="text-zinc-500">None (root commit)</p>
-            ) : (
-              <ul className="space-y-1">
-                {commit.parentHashes.map((parentHash) => (
-                  <li key={parentHash} className="break-all text-zinc-100">
-                    {parentHash}
-                  </li>
-                ))}
-              </ul>
-            )}
-          </div>
+        <div className="mt-3 space-y-2.5 text-sm">
+          <dl className="space-y-2.5">
+            <div className="rounded border border-zinc-800/80 bg-zinc-950/40 px-2.5 py-2">
+              <dt className="text-[10px] font-semibold uppercase tracking-wide text-zinc-500">
+                Short hash
+              </dt>
+              <dd className="mt-0.5 font-mono text-xs text-zinc-100">{commit.shortHash}</dd>
+            </div>
+            <div className="rounded border border-zinc-800/80 bg-zinc-950/40 px-2.5 py-2">
+              <dt className="text-[10px] font-semibold uppercase tracking-wide text-zinc-500">
+                Full hash
+              </dt>
+              <dd className="mt-0.5 break-all font-mono text-[11px] leading-snug text-zinc-200">
+                {commit.hash}
+              </dd>
+            </div>
+            <div className="rounded border border-zinc-800/80 bg-zinc-950/40 px-2.5 py-2">
+              <dt className="text-[10px] font-semibold uppercase tracking-wide text-zinc-500">
+                Subject
+              </dt>
+              <dd className="mt-0.5 text-zinc-100">{commit.subject}</dd>
+            </div>
+            <div className="rounded border border-zinc-800/80 bg-zinc-950/40 px-2.5 py-2">
+              <dt className="text-[10px] font-semibold uppercase tracking-wide text-zinc-500">
+                Author name
+              </dt>
+              <dd className="mt-0.5 text-zinc-100">{commit.authorName}</dd>
+            </div>
+            <div className="rounded border border-zinc-800/80 bg-zinc-950/40 px-2.5 py-2">
+              <dt className="text-[10px] font-semibold uppercase tracking-wide text-zinc-500">
+                Author email
+              </dt>
+              <dd className="mt-0.5 break-all text-xs text-zinc-200">{commit.authorEmail}</dd>
+            </div>
+            <div className="rounded border border-zinc-800/80 bg-zinc-950/40 px-2.5 py-2">
+              <dt className="text-[10px] font-semibold uppercase tracking-wide text-zinc-500">
+                Authored date
+              </dt>
+              <dd className="mt-0.5 text-xs text-zinc-200">
+                {new Date(commit.authoredAt).toLocaleString(undefined, {
+                  dateStyle: "medium",
+                  timeStyle: "short",
+                })}
+              </dd>
+            </div>
+            <div className="rounded border border-zinc-800/80 bg-zinc-950/40 px-2.5 py-2">
+              <dt className="text-[10px] font-semibold uppercase tracking-wide text-zinc-500">
+                Parents ({commit.parentHashes.length})
+              </dt>
+              <dd className="mt-0.5">
+                {commit.parentHashes.length === 0 ? (
+                  <p className="text-xs text-zinc-500">None — root commit</p>
+                ) : (
+                  <ul className="space-y-1">
+                    {commit.parentHashes.map((parentHash) => (
+                      <li key={parentHash}>
+                        <span
+                          className="break-all font-mono text-[11px] text-zinc-200"
+                          title={parentHash}
+                        >
+                          {parentHash}
+                        </span>
+                      </li>
+                    ))}
+                  </ul>
+                )}
+              </dd>
+            </div>
+          </dl>
 
           <div className="rounded border border-red-700/50 bg-red-950/30 p-3">
             <p className="text-xs font-medium uppercase tracking-wide text-red-300">

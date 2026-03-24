@@ -1,6 +1,18 @@
 import { invoke } from "@tauri-apps/api/core";
 
 type TauriCommandMap = {
+  get_recent_repositories: {
+    args: Record<string, never>;
+    result: unknown;
+  };
+  add_recent_repository: {
+    args: { input: { name: string; rootPath: string } };
+    result: unknown;
+  };
+  remove_recent_repository: {
+    args: { input: { rootPath: string } };
+    result: unknown;
+  };
   open_repository: {
     args: { input: { folderPath: string } };
     result: unknown;
@@ -17,8 +29,16 @@ type TauriCommandMap = {
     args: { input: { repositoryPath: string; filePaths: string[] } };
     result: unknown;
   };
+  discard_changes: {
+    args: { input: { repositoryPath: string; filePaths: string[] } };
+    result: unknown;
+  };
   create_commit: {
     args: { input: { repositoryPath: string; message: string } };
+    result: unknown;
+  };
+  generate_commit_message: {
+    args: { input: { repositoryPath: string } };
     result: unknown;
   };
   revert_commit: {
@@ -42,11 +62,17 @@ type TauriCommandMap = {
     result: unknown;
   };
   get_working_diff: {
-    args: { input: { repositoryPath: string; filePath: string } };
+    args: {
+      input: { repositoryPath: string; filePath: string; scope?: "staged" | "unstaged" };
+    };
     result: unknown;
   };
   get_commit_diff: {
     args: { input: { repositoryPath: string; commitHash: string; filePath?: string } };
+    result: unknown;
+  };
+  list_commit_changed_files: {
+    args: { input: { repositoryPath: string; commitHash: string } };
     result: unknown;
   };
 };

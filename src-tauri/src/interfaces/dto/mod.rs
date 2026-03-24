@@ -1,9 +1,12 @@
 pub mod app_error;
 pub mod branch;
 pub mod create_commit;
+pub mod discard_changes;
 pub mod diff;
+pub mod generate_commit_message;
 pub mod history;
 pub mod open_repository;
+pub mod recent_repositories;
 pub mod revert_commit;
 pub mod repository_status;
 pub mod stage_files;

@@ -1,9 +1,17 @@
-import { useMutation } from "@tanstack/react-query";
+import { useMutation, useQueryClient } from "@tanstack/react-query";
 
-import { openRepository } from "../api/open-repository";
+import { openRepository, type OpenRepositoryResult } from "../api/open-repository";
+
+import { recentRepositoriesQueryKey } from "./use-recent-repositories";
 
 export function useOpenRepository() {
+  const queryClient = useQueryClient();
+
   return useMutation({
-    mutationFn: openRepository,
+    mutationFn: (input: { folderPath: string }): Promise<OpenRepositoryResult> =>
+      openRepository(input),
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: recentRepositoriesQueryKey });
+    },
   });
 }

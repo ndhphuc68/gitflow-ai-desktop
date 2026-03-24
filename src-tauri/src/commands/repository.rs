@@ -1,4 +1,5 @@
-use crate::application::repository_use_cases;
+use crate::application::recent_repositories;
+use tauri::AppHandle;
 use crate::infrastructure::git::repository_service::GitRepositoryService;
 use crate::interfaces::dto::branch::{
     BranchDto, CheckoutBranchInputDto, CheckoutBranchResponseDto, CreateBranchInputDto,
@@ -8,11 +9,14 @@ use crate::interfaces::dto::open_repository::{
     OpenRepositoryInputDto, OpenRepositoryResponseDto, RepositoryDto,
 };
 use crate::interfaces::dto::create_commit::{CreateCommitInputDto, CreateCommitResponseDto};
+use crate::interfaces::dto::discard_changes::{
+    DiscardChangesInputDto, DiscardChangesResponseDto,
+};
 use crate::interfaces::dto::revert_commit::{RevertCommitInputDto, RevertCommitResponseDto};
 use crate::interfaces::dto::diff::{
-    DiffChangeTypeDto, DiffFileDto, DiffHunkDto, DiffLineDto, DiffLineTypeDto,
-    GetCommitDiffInputDto, GetCommitDiffResponseDto, GetWorkingDiffInputDto,
-    GetWorkingDiffResponseDto,
+    CommitChangedFileSummaryDto, DiffChangeTypeDto, DiffFileDto, DiffHunkDto, DiffLineDto,
+    DiffLineTypeDto, GetCommitDiffInputDto, GetCommitDiffResponseDto, GetWorkingDiffInputDto,
+    GetWorkingDiffResponseDto, ListCommitChangedFilesInputDto, ListCommitChangedFilesResponseDto,
 };
 use crate::interfaces::dto::history::{
     CommitDto, GetCommitHistoryInputDto, GetCommitHistoryResponseDto,
@@ -27,14 +31,16 @@ use crate::infrastructure::git::diff_parser::{DiffChangeType, DiffLineType};
 use crate::infrastructure::git::repository_service::RepositoryDiffFile;
 
 #[tauri::command]
-pub fn open_repository(input: OpenRepositoryInputDto) -> OpenRepositoryResponseDto {
-    match repository_use_cases::open_repository(input.folder_path) {
-        Ok(repository) => OpenRepositoryResponseDto {
+pub fn open_repository(app: AppHandle, input: OpenRepositoryInputDto) -> OpenRepositoryResponseDto {
+    match recent_repositories::open_repository_for_app(&app, input.folder_path) {
+        Ok((repository, recents_persist_error)) => OpenRepositoryResponseDto {
             repository: Some(RepositoryDto::from(repository)),
+            recents_persist_error,
             error: None,
         },
         Err(error) => OpenRepositoryResponseDto {
             repository: None,
+            recents_persist_error: None,
             error: Some(error.into()),
         },
     }
@@ -80,6 +86,23 @@ pub fn unstage_files(input: UnstageFilesInputDto) -> UnstageFilesResponseDto {
         },
         Err(error) => UnstageFilesResponseDto {
             success: false,
+            error: Some(error),
+        },
+    }
+}
+
+#[tauri::command]
+pub fn discard_changes(input: DiscardChangesInputDto) -> DiscardChangesResponseDto {
+    let service = GitRepositoryService::new();
+    match service.discard_changes(input.repository_path, input.file_paths) {
+        Ok(message) => DiscardChangesResponseDto {
+            success: true,
+            message: Some(message),
+            error: None,
+        },
+        Err(error) => DiscardChangesResponseDto {
+            success: false,
+            message: None,
             error: Some(error),
         },
     }
@@ -201,7 +224,7 @@ pub fn get_commit_history(input: GetCommitHistoryInputDto) -> GetCommitHistoryRe
 #[tauri::command]
 pub fn get_working_diff(input: GetWorkingDiffInputDto) -> GetWorkingDiffResponseDto {
     let service = GitRepositoryService::new();
-    match service.get_working_diff(input.repository_path, input.file_path) {
+    match service.get_working_diff(input.repository_path, input.file_path, input.scope) {
         Ok(files) => GetWorkingDiffResponseDto {
             files: Some(files.into_iter().map(map_diff_file_dto).collect()),
             error: None,
@@ -228,17 +251,52 @@ pub fn get_commit_diff(input: GetCommitDiffInputDto) -> GetCommitDiffResponseDto
     }
 }
 
+#[tauri::command]
+pub fn list_commit_changed_files(
+    input: ListCommitChangedFilesInputDto,
+) -> ListCommitChangedFilesResponseDto {
+    let service = GitRepositoryService::new();
+    match service.list_commit_changed_files(input.repository_path, input.commit_hash) {
+        Ok(files) => ListCommitChangedFilesResponseDto {
+            files: Some(
+                files
+                    .into_iter()
+                    .map(map_commit_changed_file_summary_dto)
+                    .collect(),
+            ),
+            error: None,
+        },
+        Err(error) => ListCommitChangedFilesResponseDto {
+            files: None,
+            error: Some(error),
+        },
+    }
+}
+
+fn map_commit_changed_file_summary_dto(file: RepositoryDiffFile) -> CommitChangedFileSummaryDto {
+    CommitChangedFileSummaryDto {
+        path: file.path,
+        old_path: file.old_path,
+        change_type: map_diff_change_type_dto(file.change_type),
+        is_binary: file.is_binary,
+    }
+}
+
+fn map_diff_change_type_dto(change_type: DiffChangeType) -> DiffChangeTypeDto {
+    match change_type {
+        DiffChangeType::Modified => DiffChangeTypeDto::Modified,
+        DiffChangeType::Added => DiffChangeTypeDto::Added,
+        DiffChangeType::Deleted => DiffChangeTypeDto::Deleted,
+        DiffChangeType::Renamed => DiffChangeTypeDto::Renamed,
+        DiffChangeType::Binary => DiffChangeTypeDto::Binary,
+    }
+}
+
 fn map_diff_file_dto(file: RepositoryDiffFile) -> DiffFileDto {
     DiffFileDto {
         path: file.path,
         old_path: file.old_path,
-        change_type: match file.change_type {
-            DiffChangeType::Modified => DiffChangeTypeDto::Modified,
-            DiffChangeType::Added => DiffChangeTypeDto::Added,
-            DiffChangeType::Deleted => DiffChangeTypeDto::Deleted,
-            DiffChangeType::Renamed => DiffChangeTypeDto::Renamed,
-            DiffChangeType::Binary => DiffChangeTypeDto::Binary,
-        },
+        change_type: map_diff_change_type_dto(file.change_type),
         is_binary: file.is_binary,
         hunks: file
             .hunks
