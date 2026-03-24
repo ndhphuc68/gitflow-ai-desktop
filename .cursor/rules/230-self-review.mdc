@@ -1,0 +1,23 @@
+---
+description: Mandatory self-review before finishing changes
+globs: ["**/*"]
+alwaysApply: true
+---
+
+Before concluding any non-trivial implementation, perform a self-review.
+
+Checklist:
+- does the change satisfy the requested outcome only?
+- are architecture boundaries preserved?
+- are types explicit and coherent?
+- are imports clean?
+- are loading/error/empty states handled if relevant?
+- are errors surfaced with stable contracts?
+- are destructive flows protected?
+- does this introduce duplication?
+- is there a simpler implementation that still fits the architecture?
+- do related tests need updates?
+- does the code read like production code, not tutorial code?
+
+If any answer is weak:
+- fix it before finalizing

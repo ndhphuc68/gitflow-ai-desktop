@@ -1,0 +1,29 @@
+---
+description: AI feature rules for this product
+globs: ["src/**/*", "src-tauri/src/**/*"]
+alwaysApply: true
+---
+
+AI is a first-class product feature in this repository.
+
+Primary AI features:
+- generate commit message
+- explain diff
+- review staged changes before commit
+
+Rules:
+- AI must be contextual, not generic.
+- AI actions must be attached to the current repo/file/diff/commit context.
+- Do not implement a general chat screen unless explicitly requested.
+- AI outputs should use structured schemas whenever possible.
+- Do not treat AI output as guaranteed truth.
+- Surface AI suggestions as assistive, not authoritative.
+- Include retry/error states for AI actions.
+- Keep AI request payloads minimal and scoped.
+- Do not send the entire repository by default.
+- Prefer diff, filenames, and focused context over broad code dumps.
+
+UX rules:
+- AI explanation appears in the right-side intelligence panel
+- AI pre-commit review appears in the commit panel
+- AI commit message suggestions appear inline near the commit input

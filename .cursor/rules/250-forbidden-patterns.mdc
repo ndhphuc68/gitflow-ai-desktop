@@ -1,0 +1,20 @@
+---
+description: Forbidden patterns in this repository
+globs: ["**/*"]
+alwaysApply: true
+---
+
+Forbidden patterns:
+- UI directly executing Git commands
+- business logic hidden inside JSX render branches
+- storing async query data in multiple conflicting stores
+- raw process output used as frontend contract
+- shell command strings built by concatenation with user input
+- free-form AI output trusted without validation
+- broad rewrites unrelated to the task
+- placeholder implementations merged as if complete
+- silent catch blocks
+- unsafe destructive defaults
+- architecture leakage between layers
+- giant god-components for multi-panel workflows
+- parser logic mixed with command execution logic

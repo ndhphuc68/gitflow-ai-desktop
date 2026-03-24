@@ -1,0 +1,26 @@
+---
+description: Component system and design consistency rules
+globs: ["src/**/*.tsx"]
+alwaysApply: true
+---
+
+Use a composable component system.
+
+Rules:
+- reusable primitives belong in shared UI/component folders
+- feature-specific composites belong inside feature folders
+- do not duplicate button, modal, badge, panel, tabs implementations
+- prefer composition over inheritance-like patterns
+- keep component APIs small and explicit
+- avoid giant god-components
+
+Component guidelines:
+- visual primitives: Button, IconButton, Badge, Panel, Input, Tabs, SplitPane, Modal
+- feature components: CommitPanel, BranchSidebar, HistoryGraphPanel, DiffInspector, AIReviewPanel
+- container components may fetch data and coordinate state
+- presentational components should remain focused and reusable where possible
+
+Do not:
+- embed heavy data-fetching logic deep inside leaf components
+- create multiple similar primitives with slightly different names
+- introduce styling conventions that conflict with the shared design system

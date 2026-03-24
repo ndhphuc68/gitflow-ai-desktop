@@ -1,0 +1,27 @@
+---
+description: Async data and caching rules
+globs: ["src/**/*.ts", "src/**/*.tsx"]
+alwaysApply: true
+---
+
+Async data must be predictable and easy to reason about.
+
+Rules:
+- use TanStack Query for async data that behaves like command/query results
+- define stable query keys
+- keep mutation side effects explicit
+- invalidate only the necessary queries
+- do not refetch the whole app after every action
+- preserve user context during background refresh
+
+Preferred patterns:
+- status query per repository
+- branch list query per repository
+- history query per repository and pagination window
+- diff query per selection key
+- AI queries/mutations scoped to context hash
+
+Do not:
+- duplicate async results in multiple stores
+- manually synchronize large overlapping caches unless necessary
+- trigger cascading invalidations without need

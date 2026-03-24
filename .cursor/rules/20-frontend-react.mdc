@@ -1,0 +1,45 @@
+---
+description: Frontend rules for React + TypeScript
+globs: ["src/**/*.ts", "src/**/*.tsx"]
+alwaysApply: true
+---
+
+Frontend stack:
+- React
+- TypeScript
+- Tailwind
+- Zustand
+- TanStack Query
+
+Rules:
+- Use TypeScript strictly.
+- Avoid any unless absolutely necessary.
+- Prefer explicit prop types.
+- Prefer small focused components.
+- Keep container logic separate from presentational components when complexity grows.
+- Keep components pure when possible.
+- Avoid deep prop drilling; use composition or state hooks appropriately.
+- Co-locate feature-specific hooks, components, and types inside the feature folder.
+- Reusable primitives belong in shared/ui or components/ui.
+- Avoid business logic inside JSX.
+- Use memoization only when justified.
+- Prefer readable code over clever code.
+
+Data/state rules:
+- TanStack Query for async command/query data
+- Zustand for selected repo, selected commit, layout state, panel visibility
+- do not duplicate the same source of truth in multiple stores
+
+UI rules:
+- UI must feel dense, fast, and professional
+- follow a GitKraken/Fork-like information density
+- prioritize keyboard-friendly interactions
+- right panel is for AI/context intelligence
+- left panel is for navigation/state
+- center panel is for work area
+
+When creating UI:
+- include loading, empty, and error states
+- never leave destructive actions without confirmation
+- preserve dark-mode-friendly styling
+- keep spacing and typography consistent

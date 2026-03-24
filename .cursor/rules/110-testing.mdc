@@ -1,0 +1,44 @@
+---
+description: Testing rules for frontend and backend
+globs: ["src/**/*", "src-tauri/src/**/*"]
+alwaysApply: true
+---
+
+Testing is required for non-trivial logic.
+
+Frontend test priorities:
+- hooks with branching logic
+- components with important interaction logic
+- mapping utilities
+- state transitions for critical flows
+
+Backend test priorities:
+- Git output parsers
+- error mapping
+- command argument building
+- AI response parsing
+- core domain services
+
+Rules:
+- prefer focused tests over broad brittle tests
+- test behavior, not implementation details
+- add tests when:
+  - parser logic changes
+  - command building changes
+  - error mapping changes
+  - staged/unstaged/conflict logic changes
+  - AI structured output parsing changes
+
+Do not:
+- add snapshot tests for dense, fast-changing UI unless justified
+- mock everything by default
+- skip tests for parser-heavy code
+
+Critical flows that deserve integration or E2E coverage:
+- open repo
+- stage/unstage
+- commit
+- checkout branch with dirty tree
+- load history
+- explain diff with AI
+- pre-commit AI review

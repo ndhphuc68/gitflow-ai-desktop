@@ -1,0 +1,25 @@
+---
+description: Security and privacy rules
+globs: ["src/**/*", "src-tauri/src/**/*"]
+alwaysApply: true
+---
+
+Security and privacy are product requirements.
+
+Rules:
+- do not expose secrets or API keys to the frontend unnecessarily
+- do not log sensitive code content, tokens, or credentials
+- require AI enablement before sending code/diff externally
+- keep security-sensitive operations on the Rust/backend side
+- sanitize any persisted settings related to secrets
+- avoid insecure defaults
+
+When implementing AI:
+- assume some users are privacy-sensitive
+- make external sharing intentional
+- keep auditability and transparency in mind
+
+Do not:
+- hardcode tokens
+- store secrets in plain unsafe locations if avoidable
+- send more repository content than the user action requires

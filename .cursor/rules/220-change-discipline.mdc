@@ -1,0 +1,25 @@
+---
+description: Change discipline and refactor control
+globs: ["**/*"]
+alwaysApply: true
+---
+
+Change scope must remain controlled.
+
+Rules:
+- do not opportunistically refactor unrelated modules
+- do not reformat unrelated files
+- do not upgrade dependencies casually
+- do not move files unless the task truly requires it
+- if a requested feature reveals a deeper architecture problem, explain it before large refactors
+- prefer incremental change sets over sweeping rewrites
+
+Allowed refactors:
+- small local extraction to improve clarity
+- shared helper extraction when duplication is direct and current
+- boundary-preserving cleanup around touched code
+
+Not allowed by default:
+- broad naming rewrites
+- folder reorganizations
+- replacing existing patterns repo-wide

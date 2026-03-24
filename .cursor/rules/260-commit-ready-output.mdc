@@ -1,0 +1,20 @@
+---
+description: Commit-ready code generation rules
+globs: ["**/*"]
+alwaysApply: true
+---
+
+Generated code should be commit-ready.
+
+Rules:
+- write code that can be committed with minimal manual cleanup
+- avoid tutorial commentary in code
+- avoid fake sample data unless explicitly requested
+- include only comments that clarify intent
+- use realistic types and edge handling
+- prefer complete small implementations over broad shallow scaffolds
+
+When asked to implement:
+- complete the requested slice end-to-end where feasible
+- wire the main flow, not just type definitions
+- keep future extensibility without over-engineering

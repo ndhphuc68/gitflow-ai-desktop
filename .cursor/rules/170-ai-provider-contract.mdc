@@ -1,0 +1,31 @@
+---
+description: AI provider and structured output rules
+globs: ["src/**/*", "src-tauri/src/**/*"]
+alwaysApply: true
+---
+
+AI features must use structured contracts.
+
+Rules:
+- AI responses should target defined schemas
+- do not depend on free-form prose when structured output is feasible
+- validate AI responses before use
+- handle malformed AI output gracefully
+- preserve fallback UX when AI is unavailable
+
+Preferred outputs:
+- commit message suggestions as structured list
+- diff explanation as summary + key changes + risks
+- pre-commit review as findings list + severity + recommendation
+
+Prompting principles:
+- include only the minimum necessary context
+- mention filenames and change intent if available
+- prefer deterministic instruction wording
+- avoid asking the model for broad speculation
+- request concise output tuned to UI panels
+
+Do not:
+- send whole repository content by default
+- show raw model response without validation/transformation
+- present AI results as guaranteed correct

@@ -1,0 +1,28 @@
+---
+description: Task execution workflow for the coding agent
+globs: ["**/*"]
+alwaysApply: true
+---
+
+For every non-trivial task, follow this workflow:
+
+1. Understand the request and identify affected modules.
+2. Inspect relevant existing files before proposing changes.
+3. Produce a short implementation plan.
+4. Implement only after the plan is coherent with the current architecture.
+5. Keep the diff small and scoped.
+6. After implementation, perform a self-review:
+   - type safety
+   - imports
+   - error handling
+   - edge cases
+   - architecture boundary check
+
+If the request is ambiguous:
+- prefer the smallest safe interpretation
+- do not invent new product requirements
+- do not expand scope without stating it
+
+If a requested change conflicts with the current architecture:
+- explain the conflict
+- propose the smallest compliant solution

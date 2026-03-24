@@ -1,0 +1,35 @@
+---
+description: Rust and Tauri backend rules
+globs: ["src-tauri/src/**/*.rs"]
+alwaysApply: true
+---
+
+Backend responsibilities:
+- Git CLI execution
+- filesystem and OS interaction
+- secure settings and sensitive operations
+- parsing command output
+- AI provider orchestration where applicable
+
+Rules:
+- Keep Tauri command handlers thin.
+- Move reusable logic into services or infrastructure modules.
+- Use typed DTOs for command input/output.
+- Use serde-friendly structs consistently.
+- Return typed errors, not ad-hoc strings.
+- Never shell-interpolate user input.
+- Always pass command arguments as separate args.
+- Set explicit current_dir for repo-scoped Git operations.
+- Handle timeouts and command failures safely.
+- Parse machine-friendly Git output where possible.
+- Prefer testable pure parsers for Git output transformation.
+
+Error rules:
+- map external failures to stable error codes
+- include human-readable message plus optional details
+- mark recoverable vs unrecoverable errors when possible
+
+Security rules:
+- do not log secrets or raw tokens
+- do not expose provider credentials to the frontend
+- do not send repository content to AI unless that flow is explicitly enabled

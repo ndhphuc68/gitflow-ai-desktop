@@ -1,0 +1,29 @@
+---
+description: Performance rules for desktop workflows
+globs: ["src/**/*", "src-tauri/src/**/*"]
+alwaysApply: true
+---
+
+Performance is a core product feature.
+
+Rules:
+- do not block the UI for expensive operations
+- lazy load heavy panels where appropriate
+- virtualize long lists such as commit history
+- avoid unnecessary full refreshes
+- memoize only when justified by actual rendering cost
+- cache short-lived expensive results when useful
+- keep AI requests cancellable when possible
+
+Important hotspots:
+- repository open
+- status refresh
+- commit history rendering
+- diff parsing/rendering
+- branch list updates
+- AI explain/review actions
+
+Do not:
+- rerender large trees from trivial state changes
+- refetch unrelated data after simple mutations
+- parse giant diffs synchronously in the UI if avoidable

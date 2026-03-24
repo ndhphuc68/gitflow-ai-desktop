@@ -1,0 +1,33 @@
+---
+description: Git command execution safety rules
+globs: ["src-tauri/src/**/*.rs"]
+alwaysApply: true
+---
+
+All Git commands must be safe, explicit, and testable.
+
+Rules:
+- never interpolate shell strings with user input
+- always pass args as a structured argument array
+- always set current_dir for repository operations
+- prefer machine-readable Git output
+- use timeouts for long-running commands when appropriate
+- capture stdout and stderr separately
+- normalize and validate paths
+- do not assume path separator behavior across macOS and Windows
+
+Command design:
+- executor builds and runs commands
+- parsers transform stdout into typed models
+- services map results/errors into application-level contracts
+
+Preferred Git patterns:
+- porcelain output for status
+- explicit delimiters for log parsing
+- separate commands for staged and unstaged diff
+- branch/ref queries with structured format where possible
+
+Do not:
+- parse UI-facing human-readable output if a machine-friendly mode exists
+- mix command construction and parsing in the same function
+- return raw process output directly to the frontend

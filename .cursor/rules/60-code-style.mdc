@@ -1,0 +1,22 @@
+---
+description: Code generation style rules
+globs: ["**/*"]
+alwaysApply: true
+---
+
+When generating code:
+- prefer production-ready code over tutorial code
+- no placeholder comments instead of implementation
+- no excessive inline comments
+- add comments only where intent is not obvious
+- prefer clear names over abbreviations
+- avoid one-letter variables except trivial loop indices
+- avoid deeply nested conditionals when guard clauses are clearer
+- keep functions focused and short when practical
+- do not introduce dead abstractions
+- do not over-generalize APIs before there is a real need
+
+When editing existing code:
+- preserve local style and naming conventions
+- avoid broad formatting-only edits
+- avoid touching unrelated imports or code paths

@@ -1,0 +1,24 @@
+---
+description: Definition of done for generated changes
+globs: ["**/*"]
+alwaysApply: true
+---
+
+A task is not done unless the change is production-credible.
+
+Definition of done:
+- implementation is complete for the requested scope
+- no placeholder branches remain
+- types are coherent
+- error paths are handled
+- architecture boundaries are respected
+- code fits repository conventions
+- obvious edge cases are considered
+- affected tests are added or updated where appropriate
+- no unrelated churn is included
+
+Do not mark a task complete when:
+- only happy path exists
+- implementation is mostly scaffold
+- architecture shortcuts were taken without explanation
+- the code compiles conceptually but misses flow-critical behavior

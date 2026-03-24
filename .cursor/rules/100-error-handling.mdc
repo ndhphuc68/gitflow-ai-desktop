@@ -1,0 +1,35 @@
+---
+description: Error handling rules
+globs: ["src/**/*", "src-tauri/src/**/*"]
+alwaysApply: true
+---
+
+Errors must be explicit, typed, and user-safe.
+
+Rules:
+- do not swallow errors
+- do not return null/undefined ambiguously for failure cases
+- do not rely on console logs as error handling
+- convert infrastructure failures into stable app error codes
+- preserve technical details internally where useful
+- show user-safe error messages in the UI
+
+Frontend:
+- every async UI flow must define loading, success, and error behavior
+- error UI should provide recovery actions when possible
+- destructive actions must surface clear failure messages
+
+Backend:
+- raw stderr is not an error contract
+- map process failures to typed errors
+- include recoverable flag where meaningful
+- do not panic for expected runtime failures
+
+Preferred error shape:
+- code
+- message
+- details optional
+- recoverable boolean
+
+When in doubt:
+- prefer explicit failure over silent fallback

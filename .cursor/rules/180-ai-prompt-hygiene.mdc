@@ -1,0 +1,26 @@
+---
+description: AI prompt hygiene and token discipline
+globs: ["src/**/*", "src-tauri/src/**/*"]
+alwaysApply: true
+---
+
+AI requests should be minimal, contextual, and cost-aware.
+
+Rules:
+- send only relevant diff chunks
+- include filenames and short context before adding more code
+- trim large unchanged context
+- chunk long diffs deliberately
+- prefer summarization passes over dumping too much text
+- use stable prompt templates for each AI feature
+
+Feature prompt intent:
+- generate_commit_message: concise, specific, commit-ready
+- explain_diff: summarize intent, key changes, risks
+- review_staged_changes: identify likely issues, uncertainty allowed
+
+Do not:
+- send redundant repeated context
+- send unrelated files
+- request long essay-style answers
+- optimize for verbosity over usefulness

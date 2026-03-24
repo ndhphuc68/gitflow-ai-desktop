@@ -1,0 +1,40 @@
+---
+description: Core engineering rules for this repository
+globs: ["**/*"]
+alwaysApply: true
+---
+
+You are working in a production-grade desktop application repository.
+
+Primary goals:
+- preserve architecture boundaries
+- prefer correctness over speed
+- generate maintainable code
+- avoid hidden coupling
+- avoid speculative abstractions unless clearly justified
+
+Hard rules:
+- Do not make architectural changes without explaining the impact first.
+- Do not introduce new dependencies unless necessary.
+- Do not rewrite unrelated files.
+- Do not rename files, symbols, or modules unless required by the task.
+- Do not leave placeholder code, TODO-only implementations, fake mocks, or incomplete branches unless explicitly requested.
+- Do not output pseudo-code when the task asks for implementation.
+- Do not silently ignore errors. Handle or surface them explicitly.
+- Do not duplicate business logic across files. Reuse existing abstractions when appropriate.
+- Do not mix UI logic, domain logic, and infrastructure logic in the same module.
+- Keep changes minimal, targeted, and reversible.
+
+When implementing:
+- first inspect existing patterns in the codebase
+- match naming, folder structure, and conventions already in use
+- prefer small composable functions
+- prefer explicit types over implicit any-like behavior
+- add error handling for all external interactions
+- update related types/tests when behavior changes
+
+Before finishing:
+- verify imports
+- verify types compile conceptually
+- verify no dead code was introduced
+- verify the change is scoped only to the requested outcome

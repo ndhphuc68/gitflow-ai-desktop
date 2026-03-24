@@ -1,0 +1,42 @@
+---
+description: UI and UX consistency rules
+globs: ["src/**/*.tsx", "src/**/*.ts"]
+alwaysApply: true
+---
+
+This product targets a power-user desktop workflow similar to GitKraken/Fork.
+
+UI principles:
+- information-dense but readable
+- strong visual hierarchy
+- minimal wasted space
+- fast scanability
+- desktop-first interaction model
+
+Layout principles:
+- left = navigation and repo structure
+- center = primary work area
+- right = intelligence and detail panels
+
+Rules:
+- every panel should have clear purpose
+- do not overcrowd toolbars with low-priority actions
+- primary actions must be obvious
+- dangerous actions must be visually distinct
+- use modals sparingly
+- prefer side panels, drawers, inline expansion for advanced context
+- loading states should feel fast and intentional
+- empty states should teach the next action
+- error states should help recovery
+
+Interaction rules:
+- keyboard-friendly where practical
+- right-click/context actions are allowed for power workflows
+- avoid hidden magic behavior
+- preserve user context when refreshing data
+- do not reset selection unnecessarily
+
+AI UX rules:
+- AI must not dominate basic Git actions
+- AI should be visible and inviting
+- AI output must look assistive, not authoritative

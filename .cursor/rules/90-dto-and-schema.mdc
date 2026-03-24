@@ -1,0 +1,31 @@
+---
+description: DTO, schema, and mapping rules
+globs: ["src/**/*", "src-tauri/src/**/*"]
+alwaysApply: true
+---
+
+All cross-layer communication must use explicit DTOs.
+
+Rules:
+- do not expose raw infrastructure models directly to the UI
+- do not pass untyped JSON between layers
+- define DTOs for Tauri command input/output
+- validate external/untrusted payloads
+- map infrastructure models to DTOs explicitly
+- map DTOs to UI/domain models explicitly when useful
+
+Frontend:
+- use zod for runtime validation where external payloads enter the app
+- keep API/DTO types separate from view-model types when needed
+
+Backend:
+- use serde serialize/deserialize structs consistently
+- keep command input/output structs stable and intentional
+- do not leak parser-only fields into public contracts
+
+Mapping rules:
+- parsers -> infrastructure models
+- infrastructure models -> DTOs
+- DTOs -> feature/entity view models
+
+Do not skip mapping if it weakens boundaries or leaks implementation details.

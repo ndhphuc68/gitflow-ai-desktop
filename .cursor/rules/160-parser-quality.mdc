@@ -1,0 +1,25 @@
+---
+description: Parser quality rules for Git output
+globs: ["src-tauri/src/**/*.rs"]
+alwaysApply: true
+---
+
+Git parsers are critical infrastructure and must be robust.
+
+Rules:
+- parsers should be pure where possible
+- test parsers with realistic fixtures
+- handle malformed or partial input gracefully
+- do not assume happy-path only
+- prefer explicit parsing over fragile string hacks
+- isolate parsing logic from command execution
+
+Parser expectations:
+- status parser distinguishes staged, unstaged, untracked, conflicted
+- diff parser handles binary changes and renames
+- log parser handles merge commits and multiple parents
+- branch parser handles current branch, upstream, ahead/behind when available
+
+Do not:
+- bury parsing rules in UI or command handler code
+- silently discard records without intent

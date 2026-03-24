@@ -1,0 +1,9 @@
+pub mod app_error;
+pub mod branch;
+pub mod create_commit;
+pub mod diff;
+pub mod history;
+pub mod open_repository;
+pub mod revert_commit;
+pub mod repository_status;
+pub mod stage_files;

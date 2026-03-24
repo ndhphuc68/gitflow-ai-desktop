@@ -1,0 +1,32 @@
+---
+description: Git workflow and domain rules
+globs: ["src/**/*", "src-tauri/src/**/*"]
+alwaysApply: true
+---
+
+This product is a Git desktop client, not a general IDE.
+
+Product priorities:
+- repository status
+- stage/unstage
+- commit flow
+- branch switching
+- history graph
+- diff viewer
+- AI-assisted commit/review/explanation
+
+Rules:
+- Do not add full editor/IDE behavior unless explicitly requested.
+- Do not introduce PR management, issue tracking, or code-generation features outside current scope.
+- Keep Git flows safe and explicit.
+- Preserve user changes by default.
+- Warn before destructive operations.
+- Treat conflicted states as first-class UX cases.
+- Refresh only the necessary parts of the UI after operations.
+- Prefer minimal Git commands with predictable output.
+
+When implementing Git features:
+- define the user flow first
+- include preconditions and edge cases
+- model staged, unstaged, untracked, conflicted states explicitly
+- support binary-file and rename cases in diff/history flows

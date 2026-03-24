@@ -1,0 +1,40 @@
+---
+description: Architecture rules for the Git desktop client
+globs: ["src/**/*", "src-tauri/src/**/*"]
+alwaysApply: true
+---
+
+This project uses a modular monolith architecture.
+
+Architecture layers:
+- Presentation layer: React UI, screens, components, view state
+- Application layer: use-case orchestration
+- Domain layer: core models and business rules
+- Infrastructure layer: Git CLI, filesystem, storage, AI providers, OS integrations
+
+Mandatory boundaries:
+- UI must not call Git directly.
+- UI must not contain business rules for repository operations.
+- Rust handles Git execution, filesystem access, OS interaction, and sensitive operations.
+- AI provider access must be abstracted behind a service interface.
+- Git provider access must be abstracted behind a service interface.
+- Domain models must stay framework-agnostic where possible.
+
+Frontend rules:
+- put feature code under feature modules
+- keep reusable UI primitives separate from feature components
+- use TanStack Query for command/query data
+- use Zustand only for UI/session state
+- do not store server-like data in Zustand if Query is more appropriate
+
+Rust rules:
+- command handlers must be thin
+- parsing Git output belongs in infrastructure/parsers
+- external process execution must be isolated behind executor abstractions
+- raw stderr must not be the only error contract
+- map external failures to typed app errors
+
+Change policy:
+- if a request crosses layers, preserve boundaries
+- do not shortcut architecture for convenience
+- if a shortcut seems necessary, explain it explicitly before applying it

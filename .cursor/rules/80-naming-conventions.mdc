@@ -1,0 +1,37 @@
+---
+description: Naming conventions for the repository
+globs: ["src/**/*", "src-tauri/src/**/*"]
+alwaysApply: true
+---
+
+Use consistent naming across frontend and backend.
+
+Frontend:
+- React components: PascalCase
+- hooks: useXxx
+- utility functions: camelCase
+- feature folders: kebab-case or feature-name consistently
+- types/interfaces: PascalCase
+- constants: UPPER_SNAKE_CASE only for true constants
+
+Backend Rust:
+- files/modules: snake_case
+- structs/enums/traits: PascalCase
+- functions: snake_case
+- constants: SCREAMING_SNAKE_CASE
+
+Naming rules:
+- prefer explicit names over short names
+- names must reflect business meaning, not implementation accident
+- avoid vague names like data, info, handler, helper, manager unless scoped clearly
+- avoid abbreviations unless industry-standard
+- boolean names should read as booleans:
+  - isLoading
+  - hasConflicts
+  - canCommit
+  - aiEnabled
+
+Git domain naming:
+- use repository, branch, commit, diff, status, review consistently
+- do not mix stagedFiles with selectedFiles unless they are truly different concepts
+- do not use gitData, repoStuff, aiData-like names

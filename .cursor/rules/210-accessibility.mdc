@@ -1,0 +1,19 @@
+---
+description: Accessibility and interaction rules
+globs: ["src/**/*.tsx"]
+alwaysApply: true
+---
+
+Even for a power-user desktop app, accessibility matters.
+
+Rules:
+- interactive controls must have clear labels
+- icon-only buttons must have accessible names/tooltips
+- keyboard navigation should work for core actions where practical
+- focus states should remain visible
+- color alone must not be the only signal for critical state
+- error messages should be understandable
+
+Do not:
+- hide key actions behind hover-only behavior without alternative access
+- rely only on color to indicate staged/conflicted/risky states
