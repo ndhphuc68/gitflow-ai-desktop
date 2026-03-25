@@ -8,16 +8,22 @@ import { Commit } from "../entities/commit";
 type SelectedCommitDetailPanelProps = {
   commit: Commit | null;
   repositoryPath: string | null;
+  requestedRevertCommitHash?: string | null;
+  onRevertRequestHandled?: () => void;
 };
 
 export function SelectedCommitDetailPanel({
   commit,
   repositoryPath,
+  requestedRevertCommitHash = null,
+  onRevertRequestHandled,
 }: SelectedCommitDetailPanelProps) {
   const [isConfirmOpen, setIsConfirmOpen] = useState(false);
   const [revertError, setRevertError] = useState<AppError | null>(null);
   const [revertSuccessMessage, setRevertSuccessMessage] = useState<string | null>(null);
   const revertCommitMutation = useRevertCommit({ repositoryPath });
+  const hasSelectedCommit = Boolean(commit);
+  const isReverting = revertCommitMutation.isPending;
 
   useEffect(() => {
     setIsConfirmOpen(false);
@@ -25,8 +31,40 @@ export function SelectedCommitDetailPanel({
     setRevertSuccessMessage(null);
   }, [repositoryPath]);
 
-  const hasSelectedCommit = Boolean(commit);
-  const isReverting = revertCommitMutation.isPending;
+  useEffect(() => {
+    if (!isConfirmOpen || isReverting) {
+      return;
+    }
+
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key !== "Escape") {
+        return;
+      }
+      event.preventDefault();
+      setIsConfirmOpen(false);
+    };
+
+    document.addEventListener("keydown", handleKeyDown);
+    return () => document.removeEventListener("keydown", handleKeyDown);
+  }, [isConfirmOpen, isReverting]);
+
+  useEffect(() => {
+    if (!requestedRevertCommitHash) {
+      return;
+    }
+    if (!commit || commit.hash !== requestedRevertCommitHash) {
+      onRevertRequestHandled?.();
+      return;
+    }
+    if (isReverting) {
+      onRevertRequestHandled?.();
+      return;
+    }
+    setRevertError(null);
+    setRevertSuccessMessage(null);
+    setIsConfirmOpen(true);
+    onRevertRequestHandled?.();
+  }, [requestedRevertCommitHash, commit, isReverting, onRevertRequestHandled]);
 
   const handleOpenConfirmation = () => {
     if (!hasSelectedCommit || isReverting) {
@@ -58,19 +96,20 @@ export function SelectedCommitDetailPanel({
   };
 
   return (
-    <section className="rounded border border-zinc-800 bg-zinc-900 p-4 text-sm">
-      <h2 className="text-sm font-semibold uppercase tracking-wide text-zinc-400">
+    <section className="rounded-md border border-subtle bg-elevated p-4 text-sm">
+      <h2 className="ui-section-title">
         Commit Detail
       </h2>
 
       {!commit && (
         <div
-          className="mt-3 rounded border border-dashed border-zinc-700/80 bg-zinc-950/50 px-3 py-6 text-center"
+          className="mt-3 rounded border border-dashed border-subtle bg-base/50 px-3 py-6 text-center"
           aria-live="polite"
         >
-          <p className="text-xs font-medium text-zinc-400">No commit selected</p>
-          <p className="mt-1 text-xs text-zinc-500">
-            Choose a row in Commit History to inspect hash, author, parents, and metadata.
+          <p className="text-sm font-medium text-secondary">No commit selected</p>
+          <p className="mt-1.5 text-[11px] leading-relaxed text-muted">
+            Select a row in <span className="text-secondary">Commit History</span> to view hash, author,
+            parents, and metadata here.
           </p>
         </div>
       )}
@@ -78,62 +117,62 @@ export function SelectedCommitDetailPanel({
       {commit && (
         <div className="mt-3 space-y-2.5 text-sm">
           <dl className="space-y-2.5">
-            <div className="rounded border border-zinc-800/80 bg-zinc-950/40 px-2.5 py-2">
-              <dt className="text-[10px] font-semibold uppercase tracking-wide text-zinc-500">
+            <div className="rounded border border-subtle bg-elevated px-2.5 py-2">
+              <dt className="text-[10px] font-semibold uppercase tracking-wide text-muted">
                 Short hash
               </dt>
-              <dd className="mt-0.5 font-mono text-xs text-zinc-100">{commit.shortHash}</dd>
+              <dd className="mt-0.5 font-mono text-xs text-primary">{commit.shortHash}</dd>
             </div>
-            <div className="rounded border border-zinc-800/80 bg-zinc-950/40 px-2.5 py-2">
-              <dt className="text-[10px] font-semibold uppercase tracking-wide text-zinc-500">
+            <div className="rounded border border-subtle bg-elevated px-2.5 py-2">
+              <dt className="text-[10px] font-semibold uppercase tracking-wide text-muted">
                 Full hash
               </dt>
-              <dd className="mt-0.5 break-all font-mono text-[11px] leading-snug text-zinc-200">
+              <dd className="mt-0.5 break-all font-mono text-[11px] leading-snug text-secondary">
                 {commit.hash}
               </dd>
             </div>
-            <div className="rounded border border-zinc-800/80 bg-zinc-950/40 px-2.5 py-2">
-              <dt className="text-[10px] font-semibold uppercase tracking-wide text-zinc-500">
+            <div className="rounded border border-subtle bg-elevated px-2.5 py-2">
+              <dt className="text-[10px] font-semibold uppercase tracking-wide text-muted">
                 Subject
               </dt>
-              <dd className="mt-0.5 text-zinc-100">{commit.subject}</dd>
+              <dd className="mt-0.5 font-medium text-primary">{commit.subject}</dd>
             </div>
-            <div className="rounded border border-zinc-800/80 bg-zinc-950/40 px-2.5 py-2">
-              <dt className="text-[10px] font-semibold uppercase tracking-wide text-zinc-500">
+            <div className="rounded border border-subtle bg-elevated px-2.5 py-2">
+              <dt className="text-[10px] font-semibold uppercase tracking-wide text-muted">
                 Author name
               </dt>
-              <dd className="mt-0.5 text-zinc-100">{commit.authorName}</dd>
+              <dd className="mt-0.5 text-sm text-secondary/90">{commit.authorName}</dd>
             </div>
-            <div className="rounded border border-zinc-800/80 bg-zinc-950/40 px-2.5 py-2">
-              <dt className="text-[10px] font-semibold uppercase tracking-wide text-zinc-500">
+            <div className="rounded border border-subtle bg-elevated px-2.5 py-2">
+              <dt className="text-[10px] font-semibold uppercase tracking-wide text-muted">
                 Author email
               </dt>
-              <dd className="mt-0.5 break-all text-xs text-zinc-200">{commit.authorEmail}</dd>
+              <dd className="mt-0.5 break-all text-xs text-secondary">{commit.authorEmail}</dd>
             </div>
-            <div className="rounded border border-zinc-800/80 bg-zinc-950/40 px-2.5 py-2">
-              <dt className="text-[10px] font-semibold uppercase tracking-wide text-zinc-500">
+            <div className="rounded border border-subtle bg-elevated px-2.5 py-2">
+              <dt className="text-[10px] font-semibold uppercase tracking-wide text-muted">
                 Authored date
               </dt>
-              <dd className="mt-0.5 text-xs text-zinc-200">
+              <dd className="mt-0.5 text-xs text-secondary">
                 {new Date(commit.authoredAt).toLocaleString(undefined, {
                   dateStyle: "medium",
                   timeStyle: "short",
                 })}
               </dd>
             </div>
-            <div className="rounded border border-zinc-800/80 bg-zinc-950/40 px-2.5 py-2">
-              <dt className="text-[10px] font-semibold uppercase tracking-wide text-zinc-500">
+            <div className="rounded border border-subtle bg-elevated px-2.5 py-2">
+              <dt className="text-[10px] font-semibold uppercase tracking-wide text-muted">
                 Parents ({commit.parentHashes.length})
               </dt>
               <dd className="mt-0.5">
                 {commit.parentHashes.length === 0 ? (
-                  <p className="text-xs text-zinc-500">None — root commit</p>
+                  <p className="text-xs text-muted">None — root commit</p>
                 ) : (
                   <ul className="space-y-1">
                     {commit.parentHashes.map((parentHash) => (
                       <li key={parentHash}>
                         <span
-                          className="break-all font-mono text-[11px] text-zinc-200"
+                          className="break-all font-mono text-[11px] text-secondary"
                           title={parentHash}
                         >
                           {parentHash}
@@ -146,18 +185,18 @@ export function SelectedCommitDetailPanel({
             </div>
           </dl>
 
-          <div className="rounded border border-red-700/50 bg-red-950/30 p-3">
-            <p className="text-xs font-medium uppercase tracking-wide text-red-300">
+          <div className="rounded-md border border-danger-border bg-danger-bg p-3">
+            <p className="text-xs font-medium uppercase tracking-wide text-danger-fg">
               Advanced Action
             </p>
-            <p className="mt-1 text-xs text-red-200/90">
+            <p className="mt-1 text-xs text-danger-fg/90">
               Revert creates a new commit that reverses this selected commit.
             </p>
             <button
               type="button"
               onClick={handleOpenConfirmation}
               disabled={!hasSelectedCommit || isReverting}
-              className="mt-3 w-full rounded border border-red-700 bg-red-900/40 px-3 py-2 text-sm font-medium text-red-100 transition hover:bg-red-900/60 disabled:cursor-not-allowed disabled:opacity-50"
+              className="mt-3 w-full rounded-md border border-danger-border bg-danger-bg px-3 py-2 text-sm font-medium text-danger-fg transition-colors duration-150 ease-out hover:bg-danger-bg/70 active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-50 disabled:active:scale-100"
             >
               {isReverting ? "Reverting..." : "Revert Commit"}
             </button>
@@ -166,15 +205,15 @@ export function SelectedCommitDetailPanel({
       )}
 
       {revertSuccessMessage && (
-        <div className="mt-3 rounded border border-emerald-700/50 bg-emerald-950/40 p-3 text-xs text-emerald-200">
+        <div className="mt-3 rounded-md border border-success-border bg-success-bg p-3 text-xs text-success-fg">
           {revertSuccessMessage}
         </div>
       )}
 
       {revertError && (
-        <div className="mt-3 rounded border border-red-700/50 bg-red-950/40 p-3 text-xs text-red-200">
+        <div className="mt-3 rounded-md border border-danger-border bg-danger-bg p-3 text-xs text-danger-fg">
           <p className="font-medium">{revertError.message}</p>
-          <p className="mt-1 text-red-300/90">Code: {revertError.code}</p>
+          <p className="mt-1 text-danger-fg/90">Code: {revertError.code}</p>
         </div>
       )}
 
@@ -185,15 +224,15 @@ export function SelectedCommitDetailPanel({
           aria-modal="true"
           aria-labelledby="revert-commit-title"
         >
-          <div className="w-full max-w-md rounded border border-zinc-700 bg-zinc-900 p-4 shadow-xl">
-            <h3 id="revert-commit-title" className="text-sm font-semibold text-zinc-100">
+          <div className="w-full max-w-md rounded border border-subtle bg-panel p-4 shadow-xl">
+            <h3 id="revert-commit-title" className="text-sm font-semibold text-primary">
               Revert Commit
             </h3>
-            <p className="mt-2 text-sm text-zinc-300">
+            <p className="mt-2 text-sm text-secondary">
               This will create a new commit that reverses commit{" "}
-              <span className="font-medium text-zinc-100">{commit.shortHash}</span>.
+              <span className="font-medium text-primary">{commit.shortHash}</span>.
             </p>
-            <p className="mt-2 text-xs text-zinc-400">
+            <p className="mt-2 text-xs text-muted">
               Continue only if you want to keep history intact and undo this change safely.
             </p>
             <div className="mt-4 flex gap-2">
@@ -201,7 +240,7 @@ export function SelectedCommitDetailPanel({
                 type="button"
                 onClick={() => setIsConfirmOpen(false)}
                 disabled={isReverting}
-                className="flex-1 rounded border border-zinc-700 bg-zinc-800 px-3 py-2 text-sm font-medium text-zinc-100 transition hover:bg-zinc-700 disabled:cursor-not-allowed disabled:opacity-50"
+                className="flex-1 rounded border border-subtle bg-elevated px-3 py-2 text-sm font-medium text-primary transition hover:bg-panel disabled:cursor-not-allowed disabled:opacity-50"
               >
                 Cancel
               </button>
@@ -211,7 +250,7 @@ export function SelectedCommitDetailPanel({
                   void handleConfirmRevert();
                 }}
                 disabled={isReverting}
-                className="flex-1 rounded border border-red-700 bg-red-900/40 px-3 py-2 text-sm font-medium text-red-100 transition hover:bg-red-900/60 disabled:cursor-not-allowed disabled:opacity-50"
+                className="flex-1 rounded border border-danger-border bg-danger-bg px-3 py-2 text-sm font-medium text-danger-fg transition hover:bg-danger-bg/70 disabled:cursor-not-allowed disabled:opacity-50"
               >
                 {isReverting ? "Reverting..." : "Confirm Revert"}
               </button>

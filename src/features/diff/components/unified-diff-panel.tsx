@@ -1,3 +1,6 @@
+import { KeyboardEvent, useEffect, useRef, useState } from "react";
+
+import { LoadingSpinner } from "../../../shared/ui/loading-spinner";
 import { DiffFile, DiffLine } from "../entities/diff";
 import { diffChangeTypeLabel, splitFilePathForDisplay } from "../lib/diff-display";
 import { normalizeWorkingTreeFilePath } from "../types/working-diff-selection";
@@ -14,22 +17,24 @@ type UnifiedDiffPanelProps = {
   emptyMessage: string;
   /** When set, shows staged vs unstaged context in the file header (working tree diff only). */
   workingTreeScope?: "staged" | "unstaged";
+  isKeyboardFocused?: boolean;
+  onActivateKeyboardZone?: () => void;
 };
 
 const LINE_CLASS: Record<DiffLine["type"], string> = {
-  context: "text-zinc-300",
-  added: "bg-emerald-950/40 text-emerald-200",
-  removed: "bg-rose-950/40 text-rose-200",
+  context: "border-l-2 border-l-transparent bg-base/30 text-muted",
+  added: "border-l-2 border-l-success-border bg-success-bg text-success-fg",
+  removed: "border-l-2 border-l-danger-border bg-danger-bg text-danger-fg",
 };
 
 const SCOPE_BADGE: Record<"staged" | "unstaged", { label: string; className: string }> = {
   staged: {
     label: "Staged",
-    className: "border-emerald-600/45 bg-emerald-950/50 text-emerald-200/95",
+    className: "border-success-border bg-success-bg text-success-fg",
   },
   unstaged: {
     label: "Unstaged",
-    className: "border-amber-600/40 bg-amber-950/35 text-amber-100/90",
+    className: "border-warning-border bg-warning-bg text-warning-fg",
   },
 };
 
@@ -39,23 +44,23 @@ const CHANGE_BADGE: Record<
 > = {
   modified: {
     label: diffChangeTypeLabel("modified"),
-    className: "border-sky-600/40 bg-sky-950/40 text-sky-100/95",
+    className: "border-accent-border bg-accent-bg text-accent-fg",
   },
   added: {
     label: diffChangeTypeLabel("added"),
-    className: "border-emerald-600/40 bg-emerald-950/45 text-emerald-100/95",
+    className: "border-success-border bg-success-bg text-success-fg",
   },
   deleted: {
     label: diffChangeTypeLabel("deleted"),
-    className: "border-rose-600/40 bg-rose-950/45 text-rose-100/95",
+    className: "border-danger-border bg-danger-bg text-danger-fg",
   },
   renamed: {
     label: diffChangeTypeLabel("renamed"),
-    className: "border-violet-600/40 bg-violet-950/45 text-violet-100/95",
+    className: "border-subtle bg-elevated text-secondary",
   },
   binary: {
     label: diffChangeTypeLabel("binary"),
-    className: "border-zinc-600/50 bg-zinc-900/80 text-zinc-300",
+    className: "border-subtle bg-elevated text-secondary",
   },
 };
 
@@ -70,17 +75,20 @@ function DiffFileHeader({
   const changeBadge = CHANGE_BADGE[activeFile.changeType];
 
   return (
-    <div className="border-b border-zinc-800 px-3 py-2">
+    <div className="border-b border-subtle bg-elevated px-3 py-2">
       <div className="flex min-w-0 flex-wrap items-start justify-between gap-2">
         <div className="min-w-0 flex-1">
           <p
-            className="truncate font-mono text-[13px] font-semibold leading-snug text-zinc-100"
+            className="truncate font-mono text-[13px] font-semibold leading-snug text-primary"
             title={activeFile.path}
           >
             {basename}
           </p>
           {parentPath ? (
-            <p className="mt-0.5 truncate font-mono text-[11px] leading-snug text-zinc-500" title={activeFile.path}>
+            <p
+              className="mt-0.5 truncate font-mono text-[11px] leading-snug text-muted"
+              title={activeFile.path}
+            >
               {parentPath}
             </p>
           ) : null}
@@ -101,9 +109,9 @@ function DiffFileHeader({
         </div>
       </div>
       {activeFile.oldPath && activeFile.oldPath !== activeFile.path ? (
-        <p className="mt-1.5 font-mono text-[11px] leading-snug text-zinc-500">
-          <span className="text-zinc-600">Renamed from </span>
-          <span className="text-zinc-400">{activeFile.oldPath}</span>
+        <p className="mt-1.5 font-mono text-[11px] leading-snug text-muted">
+          <span className="text-secondary">Renamed from </span>
+          <span className="text-muted">{activeFile.oldPath}</span>
         </p>
       ) : null}
     </div>
@@ -120,7 +128,11 @@ export function UnifiedDiffPanel({
   onSelectFilePath,
   emptyMessage,
   workingTreeScope,
+  isKeyboardFocused = false,
+  onActivateKeyboardZone,
 }: UnifiedDiffPanelProps) {
+  const [activeHunkIndex, setActiveHunkIndex] = useState(0);
+  const diffScrollRef = useRef<HTMLDivElement>(null);
   const normalizedSelected =
     selectedFilePath !== null && selectedFilePath.length > 0
       ? normalizeWorkingTreeFilePath(selectedFilePath)
@@ -131,27 +143,92 @@ export function UnifiedDiffPanel({
     ) ??
     files[0] ??
     null;
+  const activeHunks = activeFile?.hunks ?? [];
+
+  useEffect(() => {
+    setActiveHunkIndex(0);
+  }, [activeFile?.path, activeHunks.length]);
+
+  useEffect(() => {
+    if (!isKeyboardFocused || activeHunks.length === 0) {
+      return;
+    }
+    const activeHunkElement = diffScrollRef.current?.querySelector<HTMLElement>(
+      `[data-hunk-index="${activeHunkIndex}"]`
+    );
+    activeHunkElement?.scrollIntoView({ block: "nearest" });
+  }, [isKeyboardFocused, activeHunkIndex, activeHunks.length]);
+
+  const handlePanelKeyDown = (event: KeyboardEvent<HTMLElement>) => {
+    if (event.key === "PageDown" || event.key === "PageUp") {
+      if (!diffScrollRef.current) {
+        return;
+      }
+      event.preventDefault();
+      const scrollDelta = Math.floor(diffScrollRef.current.clientHeight * 0.9);
+      diffScrollRef.current.scrollBy({
+        top: event.key === "PageDown" ? scrollDelta : -scrollDelta,
+        behavior: "auto",
+      });
+      return;
+    }
+
+    if (event.key.toLowerCase() !== "j" && event.key.toLowerCase() !== "k") {
+      return;
+    }
+    if (activeHunks.length === 0) {
+      return;
+    }
+
+    event.preventDefault();
+    setActiveHunkIndex((current) => {
+      if (event.key.toLowerCase() === "j") {
+        return Math.min(activeHunks.length - 1, current + 1);
+      }
+      return Math.max(0, current - 1);
+    });
+  };
 
   return (
-    <section className="rounded border border-zinc-800 bg-zinc-900 p-4 text-sm">
+    <section
+      tabIndex={0}
+      onFocus={onActivateKeyboardZone}
+      onMouseDownCapture={onActivateKeyboardZone}
+      onKeyDown={handlePanelKeyDown}
+      className={`rounded-md border bg-panel p-4 text-sm outline-none ${
+        isKeyboardFocused ? "border-accent-border ring-1 ring-accent/35" : "border-subtle"
+      }`}
+    >
       <div className="mb-3 flex items-center justify-between">
-        <h3 className="text-xs font-semibold uppercase tracking-wide text-zinc-400">{title}</h3>
+        <h3 className="ui-section-title">{title}</h3>
       </div>
 
-      {isLoading && <p className="text-zinc-300">Loading diff...</p>}
+      {isLoading && (
+        <div className="flex min-h-[200px] items-center gap-2.5 text-secondary">
+          <LoadingSpinner variant="panel" />
+          <span className="text-sm">Loading diff…</span>
+        </div>
+      )}
 
       {errorMessage && (
-        <div className="rounded border border-red-700/50 bg-red-950/40 p-3 text-red-200">
+        <div className="rounded-md border border-danger-border bg-danger-bg p-3 text-danger-fg">
           <p className="font-medium">{errorMessage}</p>
         </div>
       )}
 
-      {!isLoading && !errorMessage && files.length === 0 && <p className="text-zinc-300">{emptyMessage}</p>}
+      {!isLoading && !errorMessage && files.length === 0 && (
+        <div
+          className="rounded-md border border-dashed border-subtle bg-base/50 px-3 py-5 text-center text-muted"
+          role="status"
+        >
+          <p className="text-sm font-medium text-secondary">{emptyMessage}</p>
+        </div>
+      )}
 
       {!isLoading && !errorMessage && files.length > 0 && activeFile && (
         <div className="space-y-3">
           {files.length > 1 && (
-            <div className="flex gap-2 overflow-auto pb-1">
+            <div className="flex gap-1.5 overflow-auto pb-1 pr-0.5">
               {files.map((file) => {
                 const isSelected =
                   normalizedSelected !== null &&
@@ -161,10 +238,10 @@ export function UnifiedDiffPanel({
                     key={file.path}
                     type="button"
                     onClick={() => onSelectFilePath(file.path)}
-                    className={`shrink-0 rounded-md border px-2 py-1 text-xs transition-colors ${
+                    className={`shrink-0 rounded-md border px-2 py-1 font-mono text-[11px] transition-colors duration-150 ease-out ${
                       isSelected
-                        ? "border-sky-500/75 border-l-2 border-l-sky-400 bg-sky-950/50 font-medium text-sky-50 shadow-[inset_0_0_0_1px_rgba(56,189,248,0.1)]"
-                        : "border-zinc-700 border-l-2 border-l-transparent bg-zinc-950 text-zinc-400 hover:border-zinc-600 hover:bg-zinc-800/50 hover:text-zinc-200"
+                        ? "border-accent-border border-b-2 border-b-accent bg-accent-bg font-semibold text-primary"
+                        : "border-subtle border-b-2 border-b-transparent bg-elevated text-muted hover:border-strong hover:bg-panel hover:text-primary"
                     }`}
                   >
                     {file.path}
@@ -174,33 +251,51 @@ export function UnifiedDiffPanel({
             </div>
           )}
 
-          <div className="rounded border border-zinc-800 bg-zinc-950">
+          <div className="rounded-md border border-subtle bg-elevated">
             <DiffFileHeader activeFile={activeFile} workingTreeScope={workingTreeScope} />
 
             {!isContentLoading && activeFile.isBinary && (
-              <p className="px-3 py-2 text-xs text-zinc-400">Binary file diff is not shown.</p>
+              <p className="px-3 py-2 text-xs text-muted">Binary file diff is not shown.</p>
             )}
 
             {isContentLoading && (
-              <p className="px-3 py-2 text-xs text-zinc-400">Loading file diff…</p>
+              <div className="flex min-h-[220px] items-center gap-2 px-3 py-4 text-xs text-muted">
+                <LoadingSpinner variant="diffContent" />
+                <span>Loading file diff…</span>
+              </div>
             )}
 
             {!isContentLoading && !activeFile.isBinary && activeFile.hunks.length === 0 && (
-              <p className="px-3 py-2 text-xs text-zinc-400">No textual hunks found.</p>
+              <p className="px-3 py-2 text-xs text-muted">No textual hunks found.</p>
             )}
 
             {!isContentLoading && !activeFile.isBinary && activeFile.hunks.length > 0 && (
-              <div className="max-h-[440px] overflow-auto font-mono text-xs">
-                {activeFile.hunks.map((hunk) => (
-                  <div key={`${activeFile.path}:${hunk.header}`} className="border-b border-zinc-800/80">
-                    <div className="bg-zinc-900 px-3 py-1 text-zinc-400">{hunk.header}</div>
-                    <div>
+              <div
+                ref={diffScrollRef}
+                className="max-h-[440px] overflow-auto font-mono text-[12px] leading-relaxed"
+              >
+                {activeFile.hunks.map((hunk, hunkIndex) => (
+                  <div
+                    data-hunk-index={hunkIndex}
+                    key={`${activeFile.path}:${hunkIndex}:${hunk.header}`}
+                    className={`border-b border-subtle/70 bg-base/30 ${
+                      isKeyboardFocused && hunkIndex === activeHunkIndex
+                        ? "ring-1 ring-inset ring-accent/40"
+                        : ""
+                    }`}
+                  >
+                    <div className="sticky top-0 z-1 border-b border-subtle/70 bg-elevated px-3 py-1.5 font-mono text-[11px] text-muted">
+                      {hunk.header}
+                    </div>
+                    <div className="py-0.5">
                       {hunk.lines.map((line, index) => (
                         <div
                           key={`${hunk.header}:${index}`}
-                          className={`whitespace-pre-wrap px-3 py-0.5 ${LINE_CLASS[line.type]}`}
+                          className={`whitespace-pre-wrap px-3 py-px ${LINE_CLASS[line.type]}`}
                         >
-                          {line.type === "added" ? "+" : line.type === "removed" ? "-" : " "}
+                          <span className="inline-block w-[10px] select-none text-muted">
+                            {line.type === "added" ? "+" : line.type === "removed" ? "-" : " "}
+                          </span>
                           {line.content}
                         </div>
                       ))}

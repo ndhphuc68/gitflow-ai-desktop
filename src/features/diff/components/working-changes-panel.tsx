@@ -1,5 +1,6 @@
-import { useEffect, useRef, useState } from "react";
+import { KeyboardEvent as ReactKeyboardEvent, useEffect, useMemo, useRef, useState } from "react";
 
+import { LoadingSpinner } from "../../../shared/ui/loading-spinner";
 import { AppError } from "../../../shared/types/app-error";
 import { RepositoryStatusEntry } from "../../status/entities/repository-status";
 import type { WorkingDiffSelection } from "../types/working-diff-selection";
@@ -22,6 +23,10 @@ type WorkingChangesPanelProps = {
   discardSuccessMessage: string | null;
   unstageError: AppError | null;
   onDiscardFlowOpen: () => void;
+  requestedDiscardPath?: string | null;
+  onDiscardRequestHandled?: () => void;
+  isKeyboardFocused?: boolean;
+  onActivateKeyboardZone?: () => void;
 };
 
 export function WorkingChangesPanel({
@@ -38,9 +43,14 @@ export function WorkingChangesPanel({
   discardSuccessMessage,
   unstageError,
   onDiscardFlowOpen,
+  requestedDiscardPath = null,
+  onDiscardRequestHandled,
+  isKeyboardFocused = false,
+  onActivateKeyboardZone,
 }: WorkingChangesPanelProps) {
   const [confirmDiscardPath, setConfirmDiscardPath] = useState<string | null>(null);
   const cancelButtonRef = useRef<HTMLButtonElement>(null);
+  const listRef = useRef<HTMLUListElement>(null);
   const inspectableEntries = entries.filter(
     (entry) => entry.group === "staged" || entry.group === "unstaged"
   );
@@ -48,6 +58,14 @@ export function WorkingChangesPanel({
     .filter((entry) => entry.group === "unstaged")
     .map((entry) => entry.path);
   const hasDiscardInFlight = unstagedPaths.some((path) => isDiscardPending(path));
+  const selectedIndex = useMemo(() => {
+    if (!selectedDiff) {
+      return -1;
+    }
+    return inspectableEntries.findIndex(
+      (entry) => workingDiffSelectionKey(toSelection(entry)) === workingDiffSelectionKey(selectedDiff)
+    );
+  }, [inspectableEntries, selectedDiff]);
 
   function toSelection(entry: RepositoryStatusEntry): WorkingDiffSelection {
     return {
@@ -73,54 +91,145 @@ export function WorkingChangesPanel({
     return () => document.removeEventListener("keydown", handleKeyDown);
   }, [confirmDiscardPath, hasDiscardInFlight]);
 
+  useEffect(() => {
+    const selectedElement = listRef.current?.querySelector<HTMLElement>('[data-selected="true"]');
+    selectedElement?.scrollIntoView({ block: "nearest" });
+  }, [selectedDiff]);
+
+  useEffect(() => {
+    if (!requestedDiscardPath) {
+      return;
+    }
+    if (hasDiscardInFlight) {
+      onDiscardRequestHandled?.();
+      return;
+    }
+    onDiscardFlowOpen();
+    setConfirmDiscardPath(requestedDiscardPath);
+    onDiscardRequestHandled?.();
+  }, [requestedDiscardPath, hasDiscardInFlight, onDiscardFlowOpen, onDiscardRequestHandled]);
+
+  const handlePanelKeyDown = (event: ReactKeyboardEvent<HTMLElement>) => {
+    if (inspectableEntries.length === 0) {
+      return;
+    }
+    if (
+      event.key !== "ArrowDown" &&
+      event.key !== "ArrowUp" &&
+      event.key !== "Home" &&
+      event.key !== "End" &&
+      event.key !== "Enter" &&
+      event.key.toLowerCase() !== "d"
+    ) {
+      return;
+    }
+
+    if (event.key.toLowerCase() === "d") {
+      const currentEntry = selectedIndex >= 0 ? inspectableEntries[selectedIndex] : inspectableEntries[0];
+      if (currentEntry?.group === "unstaged") {
+        event.preventDefault();
+        onDiscardFlowOpen();
+        setConfirmDiscardPath(currentEntry.path);
+      }
+      return;
+    }
+
+    event.preventDefault();
+
+    if (event.key === "Enter") {
+      const currentEntry = selectedIndex >= 0 ? inspectableEntries[selectedIndex] : inspectableEntries[0];
+      if (currentEntry) {
+        onSelectDiff(toSelection(currentEntry));
+      }
+      return;
+    }
+
+    let nextIndex = selectedIndex >= 0 ? selectedIndex : 0;
+    if (event.key === "ArrowDown") {
+      nextIndex = Math.min(inspectableEntries.length - 1, nextIndex + 1);
+    } else if (event.key === "ArrowUp") {
+      nextIndex = Math.max(0, nextIndex - 1);
+    } else if (event.key === "Home") {
+      nextIndex = 0;
+    } else if (event.key === "End") {
+      nextIndex = inspectableEntries.length - 1;
+    }
+
+    const nextEntry = inspectableEntries[nextIndex];
+    if (nextEntry) {
+      onSelectDiff(toSelection(nextEntry));
+    }
+  };
+
   return (
-    <section className="rounded border border-zinc-800 bg-zinc-900 p-4 text-sm">
+    <section
+      tabIndex={0}
+      onFocus={onActivateKeyboardZone}
+      onMouseDownCapture={onActivateKeyboardZone}
+      onKeyDown={handlePanelKeyDown}
+      className={`rounded-md border bg-panel p-4 text-sm outline-none ${
+        isKeyboardFocused ? "border-accent-border ring-1 ring-accent/35" : "border-subtle"
+      }`}
+    >
       <div className="mb-3 flex items-center justify-between">
-        <h3 className="text-xs font-semibold uppercase tracking-wide text-zinc-400">
+        <h3 className="ui-section-title">
           Working Changes
         </h3>
       </div>
 
-      {isLoading && <p className="text-zinc-300">Loading changed files...</p>}
+      {isLoading && (
+        <div className="flex min-h-[120px] items-center gap-2.5 text-secondary">
+          <LoadingSpinner variant="panel" />
+          <span className="text-sm">Loading changed files…</span>
+        </div>
+      )}
 
       {errorMessage && (
-        <div className="rounded border border-red-700/50 bg-red-950/40 p-3 text-red-200">
+        <div className="rounded-md border border-danger-border bg-danger-bg p-3 text-danger-fg">
           <p className="font-medium">{errorMessage}</p>
         </div>
       )}
 
       {discardSuccessMessage && (
-        <div className="mb-3 rounded border border-emerald-700/50 bg-emerald-950/40 p-3 text-emerald-200">
+        <div className="mb-3 rounded-md border border-success-border bg-success-bg p-3 text-success-fg">
           <p className="font-medium">{discardSuccessMessage}</p>
         </div>
       )}
 
       {discardError && (
-        <div className="mb-3 rounded border border-red-700/50 bg-red-950/40 p-3 text-red-200">
+        <div className="mb-3 rounded-md border border-danger-border bg-danger-bg p-3 text-danger-fg">
           <p className="font-medium">{discardError.message}</p>
-          <p className="mt-1 text-xs text-red-300/90">Code: {discardError.code}</p>
+          <p className="mt-1 text-xs text-danger-fg/90">Code: {discardError.code}</p>
           {discardError.details ? (
-            <p className="mt-1 break-all text-xs text-red-300/80">{discardError.details}</p>
+            <p className="mt-1 break-all text-xs text-danger-fg/80">{discardError.details}</p>
           ) : null}
         </div>
       )}
 
       {unstageError && (
-        <div className="mb-3 rounded border border-red-700/50 bg-red-950/40 p-3 text-red-200">
+        <div className="mb-3 rounded-md border border-danger-border bg-danger-bg p-3 text-danger-fg">
           <p className="font-medium">{unstageError.message}</p>
-          <p className="mt-1 text-xs text-red-300/90">Code: {unstageError.code}</p>
+          <p className="mt-1 text-xs text-danger-fg/90">Code: {unstageError.code}</p>
           {unstageError.details ? (
-            <p className="mt-1 break-all text-xs text-red-300/80">{unstageError.details}</p>
+            <p className="mt-1 break-all text-xs text-danger-fg/80">{unstageError.details}</p>
           ) : null}
         </div>
       )}
 
       {!isLoading && !errorMessage && inspectableEntries.length === 0 && (
-        <p className="text-zinc-300">No changed files to inspect.</p>
+        <div
+          className="rounded-md border border-dashed border-subtle bg-base/50 px-3 py-5 text-center"
+          role="status"
+        >
+          <p className="text-sm font-medium text-secondary">No changes detected</p>
+          <p className="mt-1.5 text-xs leading-relaxed text-muted">
+            Modify files in your editor or switch branch — updates appear here when Git sees a diff.
+          </p>
+        </div>
       )}
 
       {!isLoading && !errorMessage && inspectableEntries.length > 0 && (
-        <ul className="max-h-48 space-y-1 overflow-auto">
+        <ul ref={listRef} className="max-h-48 space-y-0.5 overflow-auto pr-0.5">
           {inspectableEntries.map((entry) => {
             const selection = toSelection(entry);
             const isSelected =
@@ -129,32 +238,38 @@ export function WorkingChangesPanel({
             const showDiscard = entry.group === "unstaged";
             const showUnstage = entry.group === "staged";
             return (
-              <li key={`${entry.group}:${entry.path}:${entry.status}`}>
+              <li
+                key={`${entry.group}:${entry.path}:${entry.status}`}
+                className="group/row"
+                data-selected={isSelected ? "true" : "false"}
+              >
                 <div
-                  className={`flex items-center gap-2 rounded border px-2 py-1.5 text-xs transition ${
+                  className={`flex items-center gap-2 rounded-md border px-1.5 py-1 text-xs transition-colors duration-150 ease-out ${
                     isSelected
-                      ? "border-sky-600/70 bg-sky-950/40 text-sky-100"
-                      : "border-zinc-800 bg-zinc-950 text-zinc-200"
+                      ? "border-accent-border border-l-[3px] border-l-accent bg-accent-bg text-accent-fg"
+                      : "border-subtle border-l-[3px] border-l-transparent bg-elevated text-secondary group-hover/row:border-strong group-hover/row:bg-panel"
                   }`}
                 >
                   <button
                     type="button"
                     onClick={() => onSelectDiff(selection)}
-                    className="min-w-0 flex-1 truncate text-left transition hover:text-zinc-100"
+                    className={`min-w-0 flex-1 truncate text-left font-mono text-[11px] transition-colors duration-150 ease-out ${
+                      isSelected ? "text-primary" : "text-secondary group-hover/row:text-primary"
+                    }`}
                     title={entry.path}
                   >
                     <span
-                      className={`mr-2 inline-block rounded border px-1 py-px text-[10px] font-medium uppercase tracking-wide ${
+                      className={`mr-2 inline-block rounded border px-1 py-px text-[10px] font-semibold uppercase tracking-wide ${
                         isSelected
-                          ? "border-sky-500/50 bg-sky-900/40 text-sky-200/90"
-                          : "border-zinc-600/60 text-zinc-400"
+                          ? "border-accent-border bg-accent-bg text-accent-fg"
+                          : "border-subtle text-muted"
                       }`}
                     >
                       {entry.group === "staged" ? "Staged" : "Unstaged"}
                     </span>
                     {entry.path}
                   </button>
-                  <div className="flex min-w-[5.5rem] shrink-0 justify-end">
+                  <div className="flex min-w-22 shrink-0 justify-end">
                     {showUnstage ? (
                       <button
                         type="button"
@@ -163,7 +278,7 @@ export function WorkingChangesPanel({
                           onUnstageFile(entry.path);
                         }}
                         disabled={isUnstagePending(entry.path)}
-                        className="rounded border border-amber-700/60 bg-amber-950/35 px-2 py-0.5 text-[11px] font-medium text-amber-100 transition hover:bg-amber-900/45 disabled:cursor-not-allowed disabled:opacity-60"
+                        className="rounded border border-warning-border bg-warning-bg px-2 py-0.5 text-[11px] font-medium text-warning-fg transition-colors duration-150 ease-out hover:bg-warning-bg/70 active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-60 disabled:active:scale-100"
                         title="Remove file from index (unstage)"
                       >
                         {isUnstagePending(entry.path) ? "Unstaging…" : "Unstage"}
@@ -177,7 +292,7 @@ export function WorkingChangesPanel({
                           setConfirmDiscardPath(entry.path);
                         }}
                         disabled={isDiscardPending(entry.path)}
-                        className="rounded border border-red-700/70 bg-red-950/40 px-2 py-0.5 text-[11px] font-medium text-red-200 transition hover:bg-red-900/60 disabled:cursor-not-allowed disabled:opacity-60"
+                        className="rounded-md border border-danger-border bg-danger-bg px-2 py-0.5 text-[11px] font-medium text-danger-fg transition-colors duration-150 ease-out hover:bg-danger-bg/70 active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-60 disabled:active:scale-100"
                         title="Discard local unstaged changes"
                       >
                         {isDiscardPending(entry.path) ? "Discarding..." : "Discard"}
@@ -204,21 +319,21 @@ export function WorkingChangesPanel({
           }}
         >
           <div
-            className="w-full max-w-md rounded border border-zinc-700 bg-zinc-900 p-4 shadow-xl outline-none"
+            className="w-full max-w-md rounded border border-subtle bg-panel p-4 shadow-xl outline-none"
             role="document"
             tabIndex={-1}
             onClick={(event) => event.stopPropagation()}
           >
-            <h3 id="discard-changes-title" className="text-sm font-semibold text-zinc-100">
+            <h3 id="discard-changes-title" className="text-sm font-semibold text-primary">
               Discard Changes
             </h3>
-            <p className="mt-2 text-sm text-zinc-300">
+            <p className="mt-2 text-sm text-secondary">
               This will permanently discard local changes for:
             </p>
-            <p className="mt-2 break-all rounded border border-zinc-700 bg-zinc-950 px-2 py-1.5 text-xs text-zinc-200">
+            <p className="mt-2 break-all rounded border border-subtle bg-base px-2 py-1.5 text-xs text-secondary">
               {confirmDiscardPath}
             </p>
-            <p className="mt-2 text-xs font-medium text-red-300">
+            <p className="mt-2 text-xs font-medium text-danger-fg">
               This will permanently discard local changes.
             </p>
             <div className="mt-4 flex gap-2">
@@ -227,7 +342,7 @@ export function WorkingChangesPanel({
                 type="button"
                 onClick={() => setConfirmDiscardPath(null)}
                 disabled={hasDiscardInFlight}
-                className="flex-1 rounded border border-zinc-700 bg-zinc-800 px-3 py-2 text-sm font-medium text-zinc-100 transition hover:bg-zinc-700 disabled:cursor-not-allowed disabled:opacity-50"
+                className="flex-1 rounded border border-subtle bg-elevated px-3 py-2 text-sm font-medium text-primary transition hover:bg-panel disabled:cursor-not-allowed disabled:opacity-50"
               >
                 Cancel
               </button>
@@ -241,7 +356,7 @@ export function WorkingChangesPanel({
                   });
                 }}
                 disabled={hasDiscardInFlight}
-                className="flex-1 rounded border border-red-700 bg-red-900/40 px-3 py-2 text-sm font-medium text-red-100 transition hover:bg-red-900/60 disabled:cursor-not-allowed disabled:opacity-50"
+                className="flex-1 rounded-md border border-danger-border bg-danger-bg px-3 py-2 text-sm font-medium text-danger-fg transition hover:bg-danger-bg/70 disabled:cursor-not-allowed disabled:opacity-50"
               >
                 {hasDiscardInFlight ? "Discarding..." : "Confirm Discard"}
               </button>

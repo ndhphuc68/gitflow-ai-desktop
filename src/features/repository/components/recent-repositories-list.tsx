@@ -31,27 +31,27 @@ export function RecentRepositoriesList({
   const showEmpty = !isLoading && !loadErrorMessage && entries.length === 0;
 
   return (
-    <div className="mb-4 border-b border-zinc-800 pb-4">
-      <h2 className="mb-2 text-xs font-semibold uppercase tracking-wide text-zinc-500">
+    <div className="mb-4 border-b border-subtle pb-4">
+      <h2 className="mb-2 ui-section-title">
         Recent
       </h2>
       {isLoading && (
-        <p className="text-xs text-zinc-500" role="status">
+        <p className="text-xs text-muted" role="status">
           Loading…
         </p>
       )}
       {!isLoading && loadErrorMessage && (
-        <p className="text-xs text-red-300/90" role="alert">
+        <p className="text-xs text-danger-fg/90" role="alert">
           {loadErrorMessage}
         </p>
       )}
       {!isLoading && removeErrorMessage && (
-        <p className="mb-2 text-xs text-red-300/90" role="alert">
+        <p className="mb-2 text-xs text-danger-fg/90" role="alert">
           {removeErrorMessage}
         </p>
       )}
       {showEmpty && (
-        <p className="text-xs text-zinc-500">No recent repositories yet.</p>
+        <p className="text-xs text-muted">No recent repositories yet.</p>
       )}
       {showList && (
         <ul className="max-h-48 space-y-1 overflow-y-auto pr-0.5">
@@ -70,15 +70,15 @@ export function RecentRepositoriesList({
                     onOpenRecent(entry.rootPath);
                   }}
                   aria-label={`Open repository ${entry.name}`}
-                  className={`min-w-0 flex-1 rounded border px-2 py-1.5 text-left text-xs transition disabled:cursor-not-allowed disabled:opacity-50 ${
+                  className={`min-w-0 flex-1 rounded-md border px-2 py-1.5 text-left text-xs transition-colors duration-150 ease-out disabled:cursor-not-allowed disabled:opacity-50 ${
                     isActive
-                      ? "border-zinc-500 bg-zinc-800/80 text-zinc-50"
-                      : "border-transparent bg-zinc-900/60 text-zinc-200 hover:border-zinc-700 hover:bg-zinc-800/60"
+                      ? "border-strong bg-panel text-primary"
+                      : "border-transparent bg-elevated text-secondary hover:border-strong hover:bg-panel"
                   }`}
                 >
                   <span className="block truncate font-medium">{entry.name}</span>
                   <span
-                    className="mt-0.5 block truncate font-mono text-[10px] text-zinc-500"
+                    className="mt-0.5 block truncate font-mono text-[10px] text-muted"
                     title={entry.rootPath}
                   >
                     {shortenRepositoryPath(entry.rootPath)}
@@ -93,7 +93,7 @@ export function RecentRepositoriesList({
                     event.stopPropagation();
                     onRemoveRecent(entry.rootPath);
                   }}
-                  className="shrink-0 rounded border border-zinc-800 px-1.5 text-xs text-zinc-500 transition hover:border-zinc-600 hover:bg-zinc-800 hover:text-zinc-200 disabled:cursor-not-allowed disabled:opacity-40"
+                  className="shrink-0 rounded border border-subtle px-1.5 text-xs text-muted transition-colors duration-150 ease-out hover:border-strong hover:bg-elevated hover:text-primary active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-40 disabled:active:scale-100"
                 >
                   ×
                 </button>

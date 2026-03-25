@@ -1,4 +1,4 @@
-import { FormEvent, useEffect, useMemo, useState } from "react";
+import { FormEvent, useEffect, useMemo, useRef, useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { open } from "@tauri-apps/plugin-dialog";
 
@@ -21,6 +21,7 @@ import {
 } from "./store/workspace-store";
 import { AppError } from "./shared/types/app-error";
 import { normalizeAppError } from "./shared/errors/normalize-app-error";
+import { LoadingSpinner } from "./shared/ui/loading-spinner";
 import { RepositoryDto } from "./features/repository/types/repository-dto";
 import { BranchPanel } from "./features/branch/components/branch-panel";
 import { useCommitHistory } from "./features/history/hooks/use-commit-history";
@@ -42,10 +43,29 @@ import { CommitPanel } from "./features/commit/components/commit-panel";
 import { useCreateCommit } from "./features/commit/hooks/use-create-commit";
 import { useGenerateCommitMessage } from "./features/commit/hooks/use-generate-commit-message";
 import { CommitMessageSuggestionDto } from "./features/commit/types/generate-commit-message-dto";
+import { CommandPalette } from "./features/command-palette/components/command-palette";
+import {
+  buildCommandRegistry,
+  type CommandPaletteContext,
+} from "./features/command-palette/command-registry";
 
 const HISTORY_LIMIT = 50;
 
 const EMPTY_REPOSITORY_STATUS_ENTRIES: RepositoryStatusEntry[] = [];
+type KeyboardFocusZone = "history" | "workingChanges" | "diff" | "commit" | null;
+
+function isTypingTarget(target: EventTarget | null): boolean {
+  if (!(target instanceof HTMLElement)) {
+    return false;
+  }
+  const tagName = target.tagName;
+  return (
+    target.isContentEditable ||
+    tagName === "INPUT" ||
+    tagName === "TEXTAREA" ||
+    tagName === "SELECT"
+  );
+}
 
 function isCommitFormSubmittable(
   stagedCount: number,
@@ -90,6 +110,11 @@ export default function App() {
   const [aiTruncatedDiff, setAiTruncatedDiff] = useState(false);
   const [allowStagedDiffForAi, setAllowStagedDiffForAi] = useState(false);
   const [recentsPersistWarning, setRecentsPersistWarning] = useState<AppError | null>(null);
+  const [keyboardFocusZone, setKeyboardFocusZone] = useState<KeyboardFocusZone>(null);
+  const [isCommandPaletteOpen, setIsCommandPaletteOpen] = useState(false);
+  const [requestedDiscardPath, setRequestedDiscardPath] = useState<string | null>(null);
+  const [requestedRevertCommitHash, setRequestedRevertCommitHash] = useState<string | null>(null);
+  const lastFocusedElementRef = useRef<HTMLElement | null>(null);
 
   const queryClient = useQueryClient();
   const openRepositoryTabs = useWorkspaceStore((state) => state.openRepositoryTabs);
@@ -333,6 +358,83 @@ export default function App() {
     });
   }, [selectedCommit, commitChangedFilesQuery.isSuccess, commitChangedFilesQuery.data]);
 
+  useEffect(() => {
+    const handleGlobalShortcuts = (event: KeyboardEvent) => {
+      if (event.defaultPrevented) {
+        return;
+      }
+
+      const isCtrlOrMeta = event.ctrlKey || event.metaKey;
+      const isShift = event.shiftKey;
+      const key = event.key.toLowerCase();
+
+      if (!isCommandPaletteOpen && isCtrlOrMeta && !isShift && key === "p" && !isTypingTarget(event.target)) {
+        event.preventDefault();
+        lastFocusedElementRef.current =
+          event.target instanceof HTMLElement ? event.target : (document.activeElement instanceof HTMLElement ? document.activeElement : null);
+        setIsCommandPaletteOpen(true);
+        return;
+      }
+
+      if (isCommandPaletteOpen) {
+        return;
+      }
+
+      if (isCtrlOrMeta && key === "tab" && openRepositoryTabs.length > 1) {
+        event.preventDefault();
+        const currentIndex = openRepositoryTabs.findIndex((tab) => tab.id === activeRepositoryId);
+        if (currentIndex < 0) {
+          return;
+        }
+        const delta = isShift ? -1 : 1;
+        const nextIndex = (currentIndex + delta + openRepositoryTabs.length) % openRepositoryTabs.length;
+        const nextTab = openRepositoryTabs[nextIndex];
+        if (nextTab) {
+          setActiveRepositoryId(nextTab.id);
+        }
+        return;
+      }
+
+      if (isCtrlOrMeta && !isShift && key === "w" && activeRepositoryId) {
+        event.preventDefault();
+        closeRepositoryTab(activeRepositoryId);
+        return;
+      }
+
+      if (
+        isCtrlOrMeta &&
+        key === "enter" &&
+        keyboardFocusZone === "commit" &&
+        !createCommitMutation.isPending &&
+        canCreateCommit
+      ) {
+        event.preventDefault();
+        void handleSubmitCommit();
+        return;
+      }
+
+      if (event.key === "Escape" && !isTypingTarget(event.target)) {
+        if (selectedCommit) {
+          event.preventDefault();
+          setSelectedCommit(null);
+        }
+      }
+    };
+
+    window.addEventListener("keydown", handleGlobalShortcuts);
+    return () => window.removeEventListener("keydown", handleGlobalShortcuts);
+  }, [
+    openRepositoryTabs,
+    activeRepositoryId,
+    closeRepositoryTab,
+    setActiveRepositoryId,
+    keyboardFocusZone,
+    createCommitMutation.isPending,
+    canCreateCommit,
+    selectedCommit,
+    isCommandPaletteOpen,
+  ]);
+
   const openRepositoryAtPath = async (folderPath: string) => {
     setOpenRepositoryError(null);
     setRecentsPersistWarning(null);
@@ -534,6 +636,73 @@ export default function App() {
     }
   };
 
+  const commandPaletteContext: CommandPaletteContext = useMemo(
+    () => ({
+      hasRepositoryOpen: Boolean(selectedRepository),
+      openRepositoryTabs,
+      activeRepositoryId,
+      recentRepositories: recentRepositoriesQuery.data ?? [],
+      branches: branchEntries,
+      commits: historyEntries,
+      selectedCommitHash: selectedCommit?.hash ?? null,
+      selectedWorkingDiff,
+      openRepositoryDialog: () => {
+        void handleSelectFolderAndOpenRepository();
+      },
+      refreshAll: () => {
+        void queryClient.invalidateQueries();
+      },
+      focusPanel: (zone) => setKeyboardFocusZone(zone),
+      switchRepositoryTab: (repositoryId) => setActiveRepositoryId(repositoryId),
+      openRecentRepository: (rootPath) => {
+        void handleOpenRecentRepository(rootPath);
+      },
+      checkoutBranch: (branchName) => {
+        void handleCheckoutBranch(branchName);
+      },
+      selectCommit: (hash) => {
+        const commit = historyEntries.find((entry) => entry.hash === hash);
+        if (commit) {
+          setSelectedCommit(commit);
+        }
+      },
+      commitNow: () => {
+        if (!createCommitMutation.isPending && canCreateCommit) {
+          void handleSubmitCommit();
+        }
+      },
+      requestRevertSelectedCommit: () => {
+        if (selectedCommit?.hash) {
+          setRequestedRevertCommitHash(selectedCommit.hash);
+        }
+      },
+      requestDiscardSelectedUnstagedFile: () => {
+        if (selectedWorkingDiff?.scope === "unstaged" && selectedWorkingDiff.path) {
+          setRequestedDiscardPath(selectedWorkingDiff.path);
+        }
+      },
+    }),
+    [
+      selectedRepository,
+      openRepositoryTabs,
+      activeRepositoryId,
+      recentRepositoriesQuery.data,
+      branchEntries,
+      historyEntries,
+      selectedCommit,
+      selectedWorkingDiff,
+      queryClient,
+      createCommitMutation.isPending,
+      canCreateCommit,
+      setActiveRepositoryId,
+    ]
+  );
+
+  const commandPaletteCommands = useMemo(
+    () => buildCommandRegistry(commandPaletteContext),
+    [commandPaletteContext]
+  );
+
   const handleDiscardFile = async (filePath: string): Promise<boolean> => {
     if (!selectedRepository) {
       return false;
@@ -575,8 +744,8 @@ export default function App() {
   };
 
   return (
-    <div className="flex h-screen flex-col bg-zinc-950 text-zinc-100">
-      <header className="flex shrink-0 items-stretch gap-2 border-b border-zinc-800 bg-zinc-950 pr-2">
+    <div className="flex h-screen flex-col overflow-hidden bg-base font-sans text-primary">
+      <header className="flex shrink-0 items-stretch gap-2 border-b border-subtle bg-base pr-2">
         <RepositoryTabBar
           tabs={openRepositoryTabs}
           activeRepositoryId={activeRepositoryId}
@@ -590,16 +759,16 @@ export default function App() {
               void handleSelectFolderAndOpenRepository();
             }}
             disabled={openRepositoryMutation.isPending}
-            className="rounded border border-zinc-600 bg-zinc-800 px-3 py-1.5 text-xs font-medium text-zinc-100 transition hover:bg-zinc-700 disabled:cursor-not-allowed disabled:opacity-50"
+            className="rounded border border-subtle bg-elevated px-3 py-1.5 text-xs font-medium text-primary transition-colors duration-150 ease-out hover:bg-panel active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-50 disabled:active:scale-100"
           >
             {openRepositoryMutation.isPending ? "Opening…" : "Open Repository"}
           </button>
         </div>
       </header>
 
-      <div className="flex min-h-0 flex-1">
-      <aside className="w-72 shrink-0 border-r border-zinc-800 p-4">
-        <h1 className="mb-4 text-sm font-semibold uppercase tracking-wide text-zinc-400">
+      <div className="flex min-h-0 flex-1 overflow-hidden">
+      <aside className="min-h-0 w-72 shrink-0 overflow-y-auto border-r border-glass-border ui-glass p-4 text-secondary">
+        <h1 className="mb-4 ui-section-title">
           Repositories
         </h1>
         <RecentRepositoriesList
@@ -619,14 +788,14 @@ export default function App() {
               : null
           }
         />
-        <details className="mt-3 rounded border border-zinc-800/70 bg-zinc-950/50">
-          <summary className="cursor-pointer list-none px-2.5 py-2 text-[11px] font-medium text-zinc-500 transition-colors hover:text-zinc-400 [&::-webkit-details-marker]:hidden">
+        <details className="mt-3 rounded border border-subtle bg-base/50">
+          <summary className="cursor-pointer list-none px-3 py-2 text-[11px] font-medium text-muted transition-colors hover:text-secondary [&::-webkit-details-marker]:hidden">
             Open by folder path (advanced)
           </summary>
-          <div className="space-y-2 border-t border-zinc-800/80 px-2.5 pb-2.5 pt-2">
-            <p className="text-[10px] leading-relaxed text-zinc-600">
+          <div className="space-y-2 border-t border-subtle px-3 pb-3 pt-2">
+            <p className="text-[10px] leading-relaxed text-muted">
               Paste a local folder path if the picker is not available. Primary flow:{" "}
-              <span className="text-zinc-500">Open Repository</span> in the tab bar or Recents.
+              <span className="text-muted">Open Repository</span> in the tab bar or Recents.
             </p>
             <form className="space-y-2" onSubmit={handleOpenRepository}>
               <label className="sr-only" htmlFor="repo-path-input">
@@ -638,12 +807,12 @@ export default function App() {
                 value={folderPathInput}
                 onChange={(event) => setFolderPathInput(event.target.value)}
                 placeholder="e.g. C:\\Users\\you\\project"
-                className="w-full rounded border border-zinc-700 bg-zinc-900 px-2.5 py-1.5 text-xs text-zinc-100 outline-none transition focus:border-zinc-500"
+                className="w-full rounded border border-subtle bg-panel px-3 py-1.5 text-xs text-primary outline-none transition focus:border-accent"
               />
               <button
                 type="submit"
                 disabled={openRepositoryMutation.isPending || folderPathInput.trim().length === 0}
-                className="w-full rounded border border-zinc-700 bg-zinc-900 px-2.5 py-1.5 text-xs font-medium text-zinc-300 transition hover:bg-zinc-800 disabled:cursor-not-allowed disabled:opacity-50"
+                className="w-full rounded border border-subtle bg-panel px-3 py-1.5 text-xs font-medium text-secondary transition hover:bg-panel disabled:cursor-not-allowed disabled:opacity-50"
               >
                 {openRepositoryMutation.isPending ? "Opening…" : "Open this path"}
               </button>
@@ -652,10 +821,7 @@ export default function App() {
         </details>
 
         {recentsPersistWarning && (
-          <p
-            className="mb-3 text-xs text-amber-200/90"
-            role="status"
-          >
+          <p className="mb-3 text-xs text-warning-fg/90" role="status">
             Repository opened, but recent list was not updated: {recentsPersistWarning.message}
           </p>
         )}
@@ -687,26 +853,27 @@ export default function App() {
         )}
       </aside>
 
-      <main className="min-w-0 flex-1 overflow-auto p-6">
-        <h2 className="mb-4 text-sm font-semibold uppercase tracking-wide text-zinc-400">
+      <main className="relative min-h-0 min-w-0 flex-1 overflow-auto bg-panel p-5 ui-inset-border">
+        <h2 className="mb-4 text-[13px] font-bold uppercase tracking-wide text-primary">
           Workspace
         </h2>
 
         {openRepositoryMutation.isPending && (
-          <div className="rounded border border-zinc-800 bg-zinc-900 p-4 text-sm text-zinc-300">
-            Loading repository metadata...
+          <div className="flex min-h-[100px] items-center gap-3 rounded border border-subtle bg-panel p-4 text-sm text-secondary">
+            <LoadingSpinner variant="workspace" />
+            <span>Loading repository metadata…</span>
           </div>
         )}
 
         {!openRepositoryMutation.isPending && openRepositoryError && (
-          <div className="rounded border border-red-700/50 bg-red-950/40 p-4 text-sm text-red-200">
+          <div className="rounded-md border border-danger-border bg-danger-bg p-4 text-sm text-danger-fg">
             <p className="font-medium">{openRepositoryError.message}</p>
-            <p className="mt-1 text-xs text-red-300/90">Code: {openRepositoryError.code}</p>
+            <p className="mt-1 text-xs text-danger-fg/90">Code: {openRepositoryError.code}</p>
           </div>
         )}
 
         {!openRepositoryMutation.isPending && !openRepositoryError && selectedRepository && (
-          <div className="space-y-4">
+          <div className="space-y-5">
             <HistoryListPanel
               isLoading={commitHistoryQuery.isLoading}
               errorMessage={
@@ -720,6 +887,8 @@ export default function App() {
               selectedCommitHash={selectedCommit?.hash ?? null}
               onSelectCommit={setSelectedCommit}
               onClearSelection={() => setSelectedCommit(null)}
+              isKeyboardFocused={keyboardFocusZone === "history"}
+              onActivateKeyboardZone={() => setKeyboardFocusZone("history")}
             />
 
             <WorkingChangesPanel
@@ -760,6 +929,10 @@ export default function App() {
                 setDiscardSuccessMessage(null);
                 setUnstageError(null);
               }}
+              requestedDiscardPath={requestedDiscardPath}
+              onDiscardRequestHandled={() => setRequestedDiscardPath(null)}
+              isKeyboardFocused={keyboardFocusZone === "workingChanges"}
+              onActivateKeyboardZone={() => setKeyboardFocusZone("workingChanges")}
             />
 
             {!selectedCommit && (
@@ -785,8 +958,10 @@ export default function App() {
                     scope: workingDiffScopeForFileList,
                   })
                 }
-                emptyMessage="Select a changed file to view its diff."
+                emptyMessage="Select a file in Working Changes to view its diff. Files appear after you modify the tree or stage changes."
                 workingTreeScope={selectedWorkingDiff?.scope}
+                isKeyboardFocused={keyboardFocusZone === "diff"}
+                onActivateKeyboardZone={() => setKeyboardFocusZone("diff")}
               />
             )}
 
@@ -809,7 +984,9 @@ export default function App() {
                 files={commitDiffFiles}
                 selectedFilePath={selectedCommitDiffFilePath}
                 onSelectFilePath={setSelectedCommitDiffFilePath}
-                emptyMessage="No diff files found for this commit."
+                emptyMessage="No file changes in this commit. Choose another revision or clear selection to return to the working tree diff."
+                isKeyboardFocused={keyboardFocusZone === "diff"}
+                onActivateKeyboardZone={() => setKeyboardFocusZone("diff")}
               />
             )}
           </div>
@@ -818,21 +995,23 @@ export default function App() {
         {!openRepositoryMutation.isPending &&
           !openRepositoryError &&
           !selectedRepository && (
-            <div className="rounded border border-zinc-800 bg-zinc-900 p-4 text-sm text-zinc-300">
-              <p className="font-medium text-zinc-200">No repository open</p>
-              <p className="mt-2 text-zinc-400">
-                Use <span className="text-zinc-300">Open Repository</span> in the tab bar to select a
-                folder, or open one from Recent below.
+            <div className="rounded-md border border-dashed border-subtle bg-base/50 p-4 text-sm">
+              <p className="font-semibold text-primary">No repository open</p>
+              <p className="mt-2 text-[13px] leading-relaxed text-muted">
+                Use <span className="text-secondary">Open Repository</span> in the tab bar or pick a
+                folder from <span className="text-secondary">Recent</span> in the sidebar.
               </p>
             </div>
           )}
       </main>
 
-      <aside className="w-80 shrink-0 border-l border-zinc-800 p-4">
-        <div className="flex flex-col gap-4">
+      <aside className="min-h-0 w-80 shrink-0 overflow-y-auto border-l border-subtle bg-sidebar p-4">
+        <div className="flex min-h-0 flex-col gap-4">
           <SelectedCommitDetailPanel
             commit={selectedCommit}
             repositoryPath={selectedRepository?.rootPath ?? null}
+            requestedRevertCommitHash={requestedRevertCommitHash}
+            onRevertRequestHandled={() => setRequestedRevertCommitHash(null)}
           />
           {selectedRepository && (
             <CommitPanel
@@ -862,11 +1041,25 @@ export default function App() {
                 void handleGenerateCommitMessage();
               }}
               onSelectCommitMessageSuggestion={handleSelectCommitMessageSuggestion}
+              isKeyboardFocused={keyboardFocusZone === "commit"}
+              onActivateKeyboardZone={() => setKeyboardFocusZone("commit")}
             />
           )}
         </div>
       </aside>
       </div>
+
+      <CommandPalette
+        isOpen={isCommandPaletteOpen}
+        commands={commandPaletteCommands}
+        onClose={() => setIsCommandPaletteOpen(false)}
+        onRestoreFocus={() => {
+          const element = lastFocusedElementRef.current;
+          if (element && document.contains(element)) {
+            element.focus();
+          }
+        }}
+      />
     </div>
   );
 }
