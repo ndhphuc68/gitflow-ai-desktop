@@ -1,3 +1,6 @@
+import { KeyboardEvent, useEffect, useMemo, useRef } from "react";
+
+import { LoadingSpinner } from "../../../shared/ui/loading-spinner";
 import { Commit } from "../entities/commit";
 
 type HistoryListPanelProps = {
@@ -7,6 +10,8 @@ type HistoryListPanelProps = {
   selectedCommitHash: string | null;
   onSelectCommit: (commit: Commit) => void;
   onClearSelection?: () => void;
+  isKeyboardFocused?: boolean;
+  onActivateKeyboardZone?: () => void;
 };
 
 export function HistoryListPanel({
@@ -16,7 +21,64 @@ export function HistoryListPanel({
   selectedCommitHash,
   onSelectCommit,
   onClearSelection,
+  isKeyboardFocused = false,
+  onActivateKeyboardZone,
 }: HistoryListPanelProps) {
+  const listRef = useRef<HTMLUListElement>(null);
+  const selectedIndex = useMemo(
+    () => commits.findIndex((commit) => commit.hash === selectedCommitHash),
+    [commits, selectedCommitHash]
+  );
+
+  useEffect(() => {
+    if (!selectedCommitHash) {
+      return;
+    }
+    const selectedElement = listRef.current?.querySelector<HTMLElement>('[data-selected="true"]');
+    selectedElement?.scrollIntoView({ block: "nearest" });
+  }, [selectedCommitHash]);
+
+  const handlePanelKeyDown = (event: KeyboardEvent<HTMLElement>) => {
+    if (commits.length === 0) {
+      return;
+    }
+    if (
+      event.key !== "ArrowDown" &&
+      event.key !== "ArrowUp" &&
+      event.key !== "Home" &&
+      event.key !== "End" &&
+      event.key !== "Enter"
+    ) {
+      return;
+    }
+
+    event.preventDefault();
+
+    if (event.key === "Enter") {
+      const current = selectedIndex >= 0 ? commits[selectedIndex] : commits[0];
+      if (current) {
+        onSelectCommit(current);
+      }
+      return;
+    }
+
+    let nextIndex = selectedIndex >= 0 ? selectedIndex : 0;
+    if (event.key === "ArrowDown") {
+      nextIndex = Math.min(commits.length - 1, nextIndex + 1);
+    } else if (event.key === "ArrowUp") {
+      nextIndex = Math.max(0, nextIndex - 1);
+    } else if (event.key === "Home") {
+      nextIndex = 0;
+    } else if (event.key === "End") {
+      nextIndex = commits.length - 1;
+    }
+
+    const nextCommit = commits[nextIndex];
+    if (nextCommit) {
+      onSelectCommit(nextCommit);
+    }
+  };
+
   return (
     <section className="flex h-full min-h-0 flex-col text-sm">
       <div className="mb-3 flex flex-wrap items-center justify-between gap-2 px-1">
@@ -56,6 +118,7 @@ export function HistoryListPanel({
             return (
               <li key={commit.hash}>
                 <button
+                  data-selected={isSelected ? "true" : "false"}
                   type="button"
                   onClick={() => onSelectCommit(commit)}
                   aria-current={isSelected ? "true" : undefined}
@@ -68,7 +131,7 @@ export function HistoryListPanel({
                 >
                   <div className="flex items-center gap-2">
                     <span
-                      className={`rounded border px-1.5 py-0.5 text-[10px] uppercase tracking-wide ${
+                      className={`rounded border px-1.5 py-0.5 font-mono text-[10px] uppercase tracking-wide ${
                         isSelected
                           ? "border-[var(--color-primary)]/60 bg-[color-mix(in_srgb,var(--color-primary)_18%,transparent)] text-[var(--color-primary-soft)]"
                           : "border-[var(--color-border)] text-[var(--color-text-secondary)]"

@@ -1,3 +1,6 @@
+import { KeyboardEvent, useEffect, useRef, useState } from "react";
+
+import { LoadingSpinner } from "../../../shared/ui/loading-spinner";
 import { DiffFile, DiffLine } from "../entities/diff";
 import { diffChangeTypeLabel, splitFilePathForDisplay } from "../lib/diff-display";
 import { normalizeWorkingTreeFilePath } from "../types/working-diff-selection";
@@ -14,6 +17,8 @@ type UnifiedDiffPanelProps = {
   emptyMessage: string;
   /** When set, shows staged vs unstaged context in the file header (working tree diff only). */
   workingTreeScope?: "staged" | "unstaged";
+  isKeyboardFocused?: boolean;
+  onActivateKeyboardZone?: () => void;
 };
 
 const LINE_CLASS: Record<DiffLine["type"], string> = {
@@ -120,7 +125,11 @@ export function UnifiedDiffPanel({
   onSelectFilePath,
   emptyMessage,
   workingTreeScope,
+  isKeyboardFocused = false,
+  onActivateKeyboardZone,
 }: UnifiedDiffPanelProps) {
+  const [activeHunkIndex, setActiveHunkIndex] = useState(0);
+  const diffScrollRef = useRef<HTMLDivElement>(null);
   const normalizedSelected =
     selectedFilePath !== null && selectedFilePath.length > 0
       ? normalizeWorkingTreeFilePath(selectedFilePath)
@@ -131,6 +140,51 @@ export function UnifiedDiffPanel({
     ) ??
     files[0] ??
     null;
+  const activeHunks = activeFile?.hunks ?? [];
+
+  useEffect(() => {
+    setActiveHunkIndex(0);
+  }, [activeFile?.path, activeHunks.length]);
+
+  useEffect(() => {
+    if (!isKeyboardFocused || activeHunks.length === 0) {
+      return;
+    }
+    const activeHunkElement = diffScrollRef.current?.querySelector<HTMLElement>(
+      `[data-hunk-index="${activeHunkIndex}"]`
+    );
+    activeHunkElement?.scrollIntoView({ block: "nearest" });
+  }, [isKeyboardFocused, activeHunkIndex, activeHunks.length]);
+
+  const handlePanelKeyDown = (event: KeyboardEvent<HTMLElement>) => {
+    if (event.key === "PageDown" || event.key === "PageUp") {
+      if (!diffScrollRef.current) {
+        return;
+      }
+      event.preventDefault();
+      const scrollDelta = Math.floor(diffScrollRef.current.clientHeight * 0.9);
+      diffScrollRef.current.scrollBy({
+        top: event.key === "PageDown" ? scrollDelta : -scrollDelta,
+        behavior: "auto",
+      });
+      return;
+    }
+
+    if (event.key.toLowerCase() !== "j" && event.key.toLowerCase() !== "k") {
+      return;
+    }
+    if (activeHunks.length === 0) {
+      return;
+    }
+
+    event.preventDefault();
+    setActiveHunkIndex((current) => {
+      if (event.key.toLowerCase() === "j") {
+        return Math.min(activeHunks.length - 1, current + 1);
+      }
+      return Math.max(0, current - 1);
+    });
+  };
 
   return (
     <section className="flex h-full min-h-0 flex-col text-sm">
@@ -153,7 +207,7 @@ export function UnifiedDiffPanel({
       {!isLoading && !errorMessage && files.length > 0 && activeFile && (
         <div className="flex min-h-0 flex-1 flex-col gap-3">
           {files.length > 1 && (
-            <div className="flex gap-2 overflow-auto pb-1">
+            <div className="flex gap-1.5 overflow-auto pb-1 pr-0.5">
               {files.map((file) => {
                 const isSelected =
                   normalizedSelected !== null &&
@@ -163,7 +217,7 @@ export function UnifiedDiffPanel({
                     key={file.path}
                     type="button"
                     onClick={() => onSelectFilePath(file.path)}
-                    className={`shrink-0 rounded-md border px-2 py-1 text-xs transition-colors ${
+                    className={`shrink-0 rounded-md border px-2 py-1 font-mono text-[11px] transition-colors duration-150 ease-out ${
                       isSelected
                         ? "ui-row-selected border-l-2 border-l-[var(--color-primary)] font-medium"
                         : "ui-tab border-l-2 border-l-transparent"
@@ -200,9 +254,11 @@ export function UnifiedDiffPanel({
                       {hunk.lines.map((line, index) => (
                         <div
                           key={`${hunk.header}:${index}`}
-                          className={`whitespace-pre-wrap px-3 py-0.5 ${LINE_CLASS[line.type]}`}
+                          className={`whitespace-pre-wrap px-3 py-px ${LINE_CLASS[line.type]}`}
                         >
-                          {line.type === "added" ? "+" : line.type === "removed" ? "-" : " "}
+                          <span className="inline-block w-[10px] select-none text-muted">
+                            {line.type === "added" ? "+" : line.type === "removed" ? "-" : " "}
+                          </span>
                           {line.content}
                         </div>
                       ))}

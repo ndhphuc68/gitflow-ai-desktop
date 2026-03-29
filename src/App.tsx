@@ -1,4 +1,4 @@
-import { FormEvent, useEffect, useMemo, useState } from "react";
+import { FormEvent, useEffect, useMemo, useRef, useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { open } from "@tauri-apps/plugin-dialog";
 
@@ -21,6 +21,7 @@ import {
 } from "./store/workspace-store";
 import { AppError } from "./shared/types/app-error";
 import { normalizeAppError } from "./shared/errors/normalize-app-error";
+import { LoadingSpinner } from "./shared/ui/loading-spinner";
 import { RepositoryDto } from "./features/repository/types/repository-dto";
 import { BranchPanel } from "./features/branch/components/branch-panel";
 import { useCommitHistory } from "./features/history/hooks/use-commit-history";
@@ -42,10 +43,29 @@ import { CommitPanel } from "./features/commit/components/commit-panel";
 import { useCreateCommit } from "./features/commit/hooks/use-create-commit";
 import { useGenerateCommitMessage } from "./features/commit/hooks/use-generate-commit-message";
 import { CommitMessageSuggestionDto } from "./features/commit/types/generate-commit-message-dto";
+import { CommandPalette } from "./features/command-palette/components/command-palette";
+import {
+  buildCommandRegistry,
+  type CommandPaletteContext,
+} from "./features/command-palette/command-registry";
 
 const HISTORY_LIMIT = 50;
 
 const EMPTY_REPOSITORY_STATUS_ENTRIES: RepositoryStatusEntry[] = [];
+type KeyboardFocusZone = "history" | "workingChanges" | "diff" | "commit" | null;
+
+function isTypingTarget(target: EventTarget | null): boolean {
+  if (!(target instanceof HTMLElement)) {
+    return false;
+  }
+  const tagName = target.tagName;
+  return (
+    target.isContentEditable ||
+    tagName === "INPUT" ||
+    tagName === "TEXTAREA" ||
+    tagName === "SELECT"
+  );
+}
 
 function isCommitFormSubmittable(
   stagedCount: number,
@@ -92,6 +112,11 @@ export default function App() {
   const [aiTruncatedDiff, setAiTruncatedDiff] = useState(false);
   const [allowStagedDiffForAi, setAllowStagedDiffForAi] = useState(false);
   const [recentsPersistWarning, setRecentsPersistWarning] = useState<AppError | null>(null);
+  const [keyboardFocusZone, setKeyboardFocusZone] = useState<KeyboardFocusZone>(null);
+  const [isCommandPaletteOpen, setIsCommandPaletteOpen] = useState(false);
+  const [requestedDiscardPath, setRequestedDiscardPath] = useState<string | null>(null);
+  const [requestedRevertCommitHash, setRequestedRevertCommitHash] = useState<string | null>(null);
+  const lastFocusedElementRef = useRef<HTMLElement | null>(null);
 
   const queryClient = useQueryClient();
   const openRepositoryTabs = useWorkspaceStore((state) => state.openRepositoryTabs);
@@ -353,6 +378,83 @@ export default function App() {
     });
   }, [selectedCommit, commitChangedFilesQuery.isSuccess, commitChangedFilesQuery.data]);
 
+  useEffect(() => {
+    const handleGlobalShortcuts = (event: KeyboardEvent) => {
+      if (event.defaultPrevented) {
+        return;
+      }
+
+      const isCtrlOrMeta = event.ctrlKey || event.metaKey;
+      const isShift = event.shiftKey;
+      const key = event.key.toLowerCase();
+
+      if (!isCommandPaletteOpen && isCtrlOrMeta && !isShift && key === "p" && !isTypingTarget(event.target)) {
+        event.preventDefault();
+        lastFocusedElementRef.current =
+          event.target instanceof HTMLElement ? event.target : (document.activeElement instanceof HTMLElement ? document.activeElement : null);
+        setIsCommandPaletteOpen(true);
+        return;
+      }
+
+      if (isCommandPaletteOpen) {
+        return;
+      }
+
+      if (isCtrlOrMeta && key === "tab" && openRepositoryTabs.length > 1) {
+        event.preventDefault();
+        const currentIndex = openRepositoryTabs.findIndex((tab) => tab.id === activeRepositoryId);
+        if (currentIndex < 0) {
+          return;
+        }
+        const delta = isShift ? -1 : 1;
+        const nextIndex = (currentIndex + delta + openRepositoryTabs.length) % openRepositoryTabs.length;
+        const nextTab = openRepositoryTabs[nextIndex];
+        if (nextTab) {
+          setActiveRepositoryId(nextTab.id);
+        }
+        return;
+      }
+
+      if (isCtrlOrMeta && !isShift && key === "w" && activeRepositoryId) {
+        event.preventDefault();
+        closeRepositoryTab(activeRepositoryId);
+        return;
+      }
+
+      if (
+        isCtrlOrMeta &&
+        key === "enter" &&
+        keyboardFocusZone === "commit" &&
+        !createCommitMutation.isPending &&
+        canCreateCommit
+      ) {
+        event.preventDefault();
+        void handleSubmitCommit();
+        return;
+      }
+
+      if (event.key === "Escape" && !isTypingTarget(event.target)) {
+        if (selectedCommit) {
+          event.preventDefault();
+          setSelectedCommit(null);
+        }
+      }
+    };
+
+    window.addEventListener("keydown", handleGlobalShortcuts);
+    return () => window.removeEventListener("keydown", handleGlobalShortcuts);
+  }, [
+    openRepositoryTabs,
+    activeRepositoryId,
+    closeRepositoryTab,
+    setActiveRepositoryId,
+    keyboardFocusZone,
+    createCommitMutation.isPending,
+    canCreateCommit,
+    selectedCommit,
+    isCommandPaletteOpen,
+  ]);
+
   const openRepositoryAtPath = async (folderPath: string) => {
     setOpenRepositoryError(null);
     setRecentsPersistWarning(null);
@@ -554,6 +656,73 @@ export default function App() {
     }
   };
 
+  const commandPaletteContext: CommandPaletteContext = useMemo(
+    () => ({
+      hasRepositoryOpen: Boolean(selectedRepository),
+      openRepositoryTabs,
+      activeRepositoryId,
+      recentRepositories: recentRepositoriesQuery.data ?? [],
+      branches: branchEntries,
+      commits: historyEntries,
+      selectedCommitHash: selectedCommit?.hash ?? null,
+      selectedWorkingDiff,
+      openRepositoryDialog: () => {
+        void handleSelectFolderAndOpenRepository();
+      },
+      refreshAll: () => {
+        void queryClient.invalidateQueries();
+      },
+      focusPanel: (zone) => setKeyboardFocusZone(zone),
+      switchRepositoryTab: (repositoryId) => setActiveRepositoryId(repositoryId),
+      openRecentRepository: (rootPath) => {
+        void handleOpenRecentRepository(rootPath);
+      },
+      checkoutBranch: (branchName) => {
+        void handleCheckoutBranch(branchName);
+      },
+      selectCommit: (hash) => {
+        const commit = historyEntries.find((entry) => entry.hash === hash);
+        if (commit) {
+          setSelectedCommit(commit);
+        }
+      },
+      commitNow: () => {
+        if (!createCommitMutation.isPending && canCreateCommit) {
+          void handleSubmitCommit();
+        }
+      },
+      requestRevertSelectedCommit: () => {
+        if (selectedCommit?.hash) {
+          setRequestedRevertCommitHash(selectedCommit.hash);
+        }
+      },
+      requestDiscardSelectedUnstagedFile: () => {
+        if (selectedWorkingDiff?.scope === "unstaged" && selectedWorkingDiff.path) {
+          setRequestedDiscardPath(selectedWorkingDiff.path);
+        }
+      },
+    }),
+    [
+      selectedRepository,
+      openRepositoryTabs,
+      activeRepositoryId,
+      recentRepositoriesQuery.data,
+      branchEntries,
+      historyEntries,
+      selectedCommit,
+      selectedWorkingDiff,
+      queryClient,
+      createCommitMutation.isPending,
+      canCreateCommit,
+      setActiveRepositoryId,
+    ]
+  );
+
+  const commandPaletteCommands = useMemo(
+    () => buildCommandRegistry(commandPaletteContext),
+    [commandPaletteContext]
+  );
+
   const handleDiscardFile = async (filePath: string): Promise<boolean> => {
     if (!selectedRepository) {
       return false;
@@ -689,6 +858,10 @@ export default function App() {
               onCreateBranch={() => {
                 void handleCreateBranch();
               }}
+              requestedDiscardPath={requestedDiscardPath}
+              onDiscardRequestHandled={() => setRequestedDiscardPath(null)}
+              isKeyboardFocused={keyboardFocusZone === "workingChanges"}
+              onActivateKeyboardZone={() => setKeyboardFocusZone("workingChanges")}
             />
           )}
 
@@ -1013,6 +1186,18 @@ export default function App() {
         </div>
       </section>
       </div>
+
+      <CommandPalette
+        isOpen={isCommandPaletteOpen}
+        commands={commandPaletteCommands}
+        onClose={() => setIsCommandPaletteOpen(false)}
+        onRestoreFocus={() => {
+          const element = lastFocusedElementRef.current;
+          if (element && document.contains(element)) {
+            element.focus();
+          }
+        }}
+      />
     </div>
   );
 }

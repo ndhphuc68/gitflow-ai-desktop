@@ -8,16 +8,22 @@ import { Commit } from "../entities/commit";
 type SelectedCommitDetailPanelProps = {
   commit: Commit | null;
   repositoryPath: string | null;
+  requestedRevertCommitHash?: string | null;
+  onRevertRequestHandled?: () => void;
 };
 
 export function SelectedCommitDetailPanel({
   commit,
   repositoryPath,
+  requestedRevertCommitHash = null,
+  onRevertRequestHandled,
 }: SelectedCommitDetailPanelProps) {
   const [isConfirmOpen, setIsConfirmOpen] = useState(false);
   const [revertError, setRevertError] = useState<AppError | null>(null);
   const [revertSuccessMessage, setRevertSuccessMessage] = useState<string | null>(null);
   const revertCommitMutation = useRevertCommit({ repositoryPath });
+  const hasSelectedCommit = Boolean(commit);
+  const isReverting = revertCommitMutation.isPending;
 
   useEffect(() => {
     setIsConfirmOpen(false);
@@ -25,8 +31,40 @@ export function SelectedCommitDetailPanel({
     setRevertSuccessMessage(null);
   }, [repositoryPath]);
 
-  const hasSelectedCommit = Boolean(commit);
-  const isReverting = revertCommitMutation.isPending;
+  useEffect(() => {
+    if (!isConfirmOpen || isReverting) {
+      return;
+    }
+
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key !== "Escape") {
+        return;
+      }
+      event.preventDefault();
+      setIsConfirmOpen(false);
+    };
+
+    document.addEventListener("keydown", handleKeyDown);
+    return () => document.removeEventListener("keydown", handleKeyDown);
+  }, [isConfirmOpen, isReverting]);
+
+  useEffect(() => {
+    if (!requestedRevertCommitHash) {
+      return;
+    }
+    if (!commit || commit.hash !== requestedRevertCommitHash) {
+      onRevertRequestHandled?.();
+      return;
+    }
+    if (isReverting) {
+      onRevertRequestHandled?.();
+      return;
+    }
+    setRevertError(null);
+    setRevertSuccessMessage(null);
+    setIsConfirmOpen(true);
+    onRevertRequestHandled?.();
+  }, [requestedRevertCommitHash, commit, isReverting, onRevertRequestHandled]);
 
   const handleOpenConfirmation = () => {
     if (!hasSelectedCommit || isReverting) {

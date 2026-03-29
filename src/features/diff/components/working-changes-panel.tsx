@@ -1,5 +1,6 @@
-import { useEffect, useRef, useState } from "react";
+import { KeyboardEvent as ReactKeyboardEvent, useEffect, useMemo, useRef, useState } from "react";
 
+import { LoadingSpinner } from "../../../shared/ui/loading-spinner";
 import { AppError } from "../../../shared/types/app-error";
 import { RepositoryStatusEntry } from "../../status/entities/repository-status";
 import type { WorkingDiffSelection } from "../types/working-diff-selection";
@@ -22,6 +23,10 @@ type WorkingChangesPanelProps = {
   discardSuccessMessage: string | null;
   unstageError: AppError | null;
   onDiscardFlowOpen: () => void;
+  requestedDiscardPath?: string | null;
+  onDiscardRequestHandled?: () => void;
+  isKeyboardFocused?: boolean;
+  onActivateKeyboardZone?: () => void;
 };
 
 export function WorkingChangesPanel({
@@ -38,9 +43,14 @@ export function WorkingChangesPanel({
   discardSuccessMessage,
   unstageError,
   onDiscardFlowOpen,
+  requestedDiscardPath = null,
+  onDiscardRequestHandled,
+  isKeyboardFocused = false,
+  onActivateKeyboardZone,
 }: WorkingChangesPanelProps) {
   const [confirmDiscardPath, setConfirmDiscardPath] = useState<string | null>(null);
   const cancelButtonRef = useRef<HTMLButtonElement>(null);
+  const listRef = useRef<HTMLUListElement>(null);
   const inspectableEntries = entries.filter(
     (entry) => entry.group === "staged" || entry.group === "unstaged"
   );
@@ -48,6 +58,14 @@ export function WorkingChangesPanel({
     .filter((entry) => entry.group === "unstaged")
     .map((entry) => entry.path);
   const hasDiscardInFlight = unstagedPaths.some((path) => isDiscardPending(path));
+  const selectedIndex = useMemo(() => {
+    if (!selectedDiff) {
+      return -1;
+    }
+    return inspectableEntries.findIndex(
+      (entry) => workingDiffSelectionKey(toSelection(entry)) === workingDiffSelectionKey(selectedDiff)
+    );
+  }, [inspectableEntries, selectedDiff]);
 
   function toSelection(entry: RepositoryStatusEntry): WorkingDiffSelection {
     return {
@@ -72,6 +90,76 @@ export function WorkingChangesPanel({
     document.addEventListener("keydown", handleKeyDown);
     return () => document.removeEventListener("keydown", handleKeyDown);
   }, [confirmDiscardPath, hasDiscardInFlight]);
+
+  useEffect(() => {
+    const selectedElement = listRef.current?.querySelector<HTMLElement>('[data-selected="true"]');
+    selectedElement?.scrollIntoView({ block: "nearest" });
+  }, [selectedDiff]);
+
+  useEffect(() => {
+    if (!requestedDiscardPath) {
+      return;
+    }
+    if (hasDiscardInFlight) {
+      onDiscardRequestHandled?.();
+      return;
+    }
+    onDiscardFlowOpen();
+    setConfirmDiscardPath(requestedDiscardPath);
+    onDiscardRequestHandled?.();
+  }, [requestedDiscardPath, hasDiscardInFlight, onDiscardFlowOpen, onDiscardRequestHandled]);
+
+  const handlePanelKeyDown = (event: ReactKeyboardEvent<HTMLElement>) => {
+    if (inspectableEntries.length === 0) {
+      return;
+    }
+    if (
+      event.key !== "ArrowDown" &&
+      event.key !== "ArrowUp" &&
+      event.key !== "Home" &&
+      event.key !== "End" &&
+      event.key !== "Enter" &&
+      event.key.toLowerCase() !== "d"
+    ) {
+      return;
+    }
+
+    if (event.key.toLowerCase() === "d") {
+      const currentEntry = selectedIndex >= 0 ? inspectableEntries[selectedIndex] : inspectableEntries[0];
+      if (currentEntry?.group === "unstaged") {
+        event.preventDefault();
+        onDiscardFlowOpen();
+        setConfirmDiscardPath(currentEntry.path);
+      }
+      return;
+    }
+
+    event.preventDefault();
+
+    if (event.key === "Enter") {
+      const currentEntry = selectedIndex >= 0 ? inspectableEntries[selectedIndex] : inspectableEntries[0];
+      if (currentEntry) {
+        onSelectDiff(toSelection(currentEntry));
+      }
+      return;
+    }
+
+    let nextIndex = selectedIndex >= 0 ? selectedIndex : 0;
+    if (event.key === "ArrowDown") {
+      nextIndex = Math.min(inspectableEntries.length - 1, nextIndex + 1);
+    } else if (event.key === "ArrowUp") {
+      nextIndex = Math.max(0, nextIndex - 1);
+    } else if (event.key === "Home") {
+      nextIndex = 0;
+    } else if (event.key === "End") {
+      nextIndex = inspectableEntries.length - 1;
+    }
+
+    const nextEntry = inspectableEntries[nextIndex];
+    if (nextEntry) {
+      onSelectDiff(toSelection(nextEntry));
+    }
+  };
 
   return (
     <section className="flex h-full min-h-0 flex-col text-sm">
@@ -129,7 +217,11 @@ export function WorkingChangesPanel({
             const showDiscard = entry.group === "unstaged";
             const showUnstage = entry.group === "staged";
             return (
-              <li key={`${entry.group}:${entry.path}:${entry.status}`}>
+              <li
+                key={`${entry.group}:${entry.path}:${entry.status}`}
+                className="group/row"
+                data-selected={isSelected ? "true" : "false"}
+              >
                 <div
                   className={`flex items-center gap-2 rounded-[var(--radius-md)] px-2.5 py-2 text-xs transition ${
                     isSelected
@@ -144,7 +236,7 @@ export function WorkingChangesPanel({
                     title={entry.path}
                   >
                     <span
-                      className={`mr-2 inline-block rounded border px-1 py-px text-[10px] font-medium uppercase tracking-wide ${
+                      className={`mr-2 inline-block rounded border px-1 py-px text-[10px] font-semibold uppercase tracking-wide ${
                         isSelected
                           ? "border-[var(--color-primary)]/50 bg-[color-mix(in_srgb,var(--color-primary)_18%,transparent)] text-[var(--color-primary-soft)]"
                           : "border-[var(--color-border)]/80 text-[var(--color-text-secondary)]"
@@ -154,7 +246,7 @@ export function WorkingChangesPanel({
                     </span>
                     {entry.path}
                   </button>
-                  <div className="flex min-w-[5.5rem] shrink-0 justify-end">
+                  <div className="flex min-w-22 shrink-0 justify-end">
                     {showUnstage ? (
                       <button
                         type="button"

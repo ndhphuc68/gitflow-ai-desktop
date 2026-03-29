@@ -34,6 +34,11 @@ export const RepositoryTabItem = memo(function RepositoryTabItem({
     onCloseTab(tab.id);
   }, [onCloseTab, tab.id]);
 
+  const handleCloseMouseDown = useCallback((event: MouseEvent) => {
+    event.preventDefault();
+    event.stopPropagation();
+  }, []);
+
   const handleMiddleClose = useCallback(
     (event: MouseEvent) => {
       if (event.button !== 1) {
@@ -105,7 +110,10 @@ export const RepositoryTabItem = memo(function RepositoryTabItem({
         aria-label={`Close repository tab ${tab.name}`}
         tabIndex={-1}
         onClick={handleClose}
-        onMouseDown={handleMiddleClose}
+        onMouseDown={(event) => {
+          handleCloseMouseDown(event);
+          handleMiddleClose(event);
+        }}
         className={[
           "flex h-full min-w-[28px] shrink-0 items-center justify-center rounded-r-[inherit] border-l text-sm leading-none outline-none transition-[opacity,background-color,color] duration-100",
           isActive ? "border-[var(--color-divider)] text-[var(--color-text-secondary)]" : "border-[var(--color-divider)] text-[var(--color-text-muted)]",

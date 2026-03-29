@@ -1,5 +1,6 @@
 import { FormEvent } from "react";
 
+import { LoadingSpinner } from "../../../shared/ui/loading-spinner";
 import { AppError } from "../../../shared/types/app-error";
 import { CommitMessageSuggestionDto } from "../types/generate-commit-message-dto";
 
@@ -22,6 +23,8 @@ type CommitPanelProps = {
   onAllowSendStagedDiffToAiChange: (allowed: boolean) => void;
   onGenerateCommitMessage: () => void;
   onSelectCommitMessageSuggestion: (suggestion: CommitMessageSuggestionDto) => void;
+  isKeyboardFocused?: boolean;
+  onActivateKeyboardZone?: () => void;
 };
 
 export function CommitPanel({
@@ -43,6 +46,8 @@ export function CommitPanel({
   onAllowSendStagedDiffToAiChange,
   onGenerateCommitMessage,
   onSelectCommitMessageSuggestion,
+  isKeyboardFocused = false,
+  onActivateKeyboardZone,
 }: CommitPanelProps) {
   const handleSubmit = (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
