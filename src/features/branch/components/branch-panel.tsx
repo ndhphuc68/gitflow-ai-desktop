@@ -1,4 +1,4 @@
-import { FormEvent } from "react";
+import { FormEvent, useState } from "react";
 
 import { AppError } from "../../../shared/types/app-error";
 import { BranchDto } from "../types/branch-dto";
@@ -30,53 +30,57 @@ export function BranchPanel({
   onCheckoutBranch,
   onCreateBranch,
 }: BranchPanelProps) {
+  const [isCreateOpen, setIsCreateOpen] = useState(false);
+
   const handleCreateSubmit = (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     onCreateBranch();
   };
 
   return (
-    <section className="mt-5 space-y-3 rounded border border-zinc-800 bg-zinc-900 p-3 text-sm">
+    <section className="mt-5 space-y-3 text-sm">
       <div className="flex items-center justify-between">
-        <h2 className="text-xs font-semibold uppercase tracking-wide text-zinc-400">Branches</h2>
-        {isLoading && <span className="text-xs text-zinc-500">Loading...</span>}
+        <h2 className="text-[11px] font-semibold uppercase tracking-[0.18em] text-[var(--color-text-secondary)]">
+          Branches
+        </h2>
+        {isLoading && <span className="text-xs text-[var(--color-text-secondary)]">Loading...</span>}
       </div>
 
       {loadErrorMessage && (
-        <div className="rounded border border-red-700/50 bg-red-950/40 p-2 text-xs text-red-200">
+        <div className="rounded-[var(--radius-md)] border border-[var(--color-danger)]/50 bg-[var(--color-danger-soft)] p-2 text-xs text-[var(--color-text)]">
           {loadErrorMessage}
         </div>
       )}
 
       {branchError && (
-        <div className="rounded border border-red-700/50 bg-red-950/40 p-2 text-xs text-red-200">
+        <div className="rounded-[var(--radius-md)] border border-[var(--color-danger)]/50 bg-[var(--color-danger-soft)] p-2 text-xs text-[var(--color-text)]">
           <p className="font-medium">{branchError.message}</p>
-          <p className="mt-1 text-red-300/90">Code: {branchError.code}</p>
+          <p className="mt-1 text-[var(--color-text-secondary)]">Code: {branchError.code}</p>
         </div>
       )}
 
       {!isLoading && !loadErrorMessage && branches.length === 0 && (
-        <p className="text-xs text-zinc-500">No local branches found.</p>
+        <p className="text-xs text-[var(--color-text-muted)]">No local branches found.</p>
       )}
 
       {!isLoading && !loadErrorMessage && branches.length > 0 && (
-        <ul className="max-h-60 space-y-1 overflow-auto">
+        <ul className="max-h-72 space-y-1 overflow-auto">
           {branches.map((branch) => (
             <li key={branch.name}>
               <button
                 type="button"
                 disabled={branch.isCurrent || isBranchMutating}
                 onClick={() => onCheckoutBranch(branch.name)}
-                className={`flex w-full items-center gap-2 rounded border px-2 py-1.5 text-left text-xs transition ${
+                className={`flex w-full items-center gap-2 rounded-[var(--radius-md)] px-2.5 py-2 text-left text-xs transition ${
                   branch.isCurrent
-                    ? "border-emerald-700/60 bg-emerald-950/30 text-emerald-200"
-                    : "border-zinc-700 bg-zinc-950 text-zinc-200 hover:border-zinc-500 hover:text-zinc-100 disabled:cursor-not-allowed disabled:opacity-60"
+                  ? "ui-row-selected text-[var(--color-text)]"
+                    : "ui-sidebar-item text-[var(--color-text)] disabled:cursor-not-allowed disabled:opacity-60"
                 }`}
                 title={branch.isCurrent ? "Current branch" : "Checkout branch"}
               >
                 <span className="truncate">{branch.name}</span>
                 {branch.isCurrent && (
-                  <span className="ml-auto rounded border border-emerald-600/50 px-1.5 py-0.5 text-[10px] uppercase tracking-wide text-emerald-300">
+                  <span className="ml-auto rounded-full border border-[var(--color-branch-current)]/60 bg-[color-mix(in_srgb,var(--color-branch-current)_18%,transparent)] px-1.5 py-0.5 text-[10px] uppercase tracking-wide text-[var(--color-primary-soft)]">
                     Current
                   </span>
                 )}
@@ -86,28 +90,54 @@ export function BranchPanel({
         </ul>
       )}
 
-      <form className="space-y-2 pt-1" onSubmit={handleCreateSubmit}>
-        <label className="block text-xs font-medium text-zinc-400" htmlFor="create-branch-input">
-          Create branch
-        </label>
-        <div className="flex gap-2">
-          <input
-            id="create-branch-input"
-            type="text"
-            value={newBranchName}
-            onChange={(event) => onNewBranchNameChange(event.target.value)}
-            placeholder="feature/branch-name"
-            className="min-w-0 flex-1 rounded border border-zinc-700 bg-zinc-950 px-2 py-1.5 text-xs text-zinc-100 outline-none transition focus:border-zinc-500"
-          />
+      <div className="border-t border-[var(--color-divider)] pt-3">
+        {!isCreateOpen ? (
           <button
-            type="submit"
-            disabled={!canCreateBranch}
-            className="rounded border border-zinc-600 px-2 py-1.5 text-xs font-medium text-zinc-100 transition hover:border-zinc-400 disabled:cursor-not-allowed disabled:opacity-50"
+            type="button"
+            onClick={() => setIsCreateOpen(true)}
+            className="ui-button-secondary w-full px-2.5 py-2 text-xs font-medium"
           >
-            {isCreateBranchPending ? "Creating..." : "Create"}
+            New branch
           </button>
-        </div>
-      </form>
+        ) : (
+          <form className="space-y-2" onSubmit={handleCreateSubmit}>
+            <label
+              className="block text-xs font-medium text-[var(--color-text-secondary)]"
+              htmlFor="create-branch-input"
+            >
+              Create branch
+            </label>
+            <div className="flex gap-2">
+              <input
+                id="create-branch-input"
+                type="text"
+                value={newBranchName}
+                onChange={(event) => onNewBranchNameChange(event.target.value)}
+                placeholder="feature/branch-name"
+                className="ui-input min-w-0 flex-1 px-2 py-1.5 text-xs"
+                autoFocus
+              />
+              <button
+                type="submit"
+                disabled={!canCreateBranch}
+                className="ui-button-primary px-2.5 py-1.5 text-xs font-medium disabled:cursor-not-allowed disabled:opacity-50"
+              >
+                {isCreateBranchPending ? "Creating..." : "Create"}
+              </button>
+            </div>
+            <button
+              type="button"
+              onClick={() => {
+                setIsCreateOpen(false);
+                onNewBranchNameChange("");
+              }}
+              className="ui-button-ghost px-2 py-1 text-[11px] font-medium"
+            >
+              Cancel
+            </button>
+          </form>
+        )}
+      </div>
     </section>
   );
 }

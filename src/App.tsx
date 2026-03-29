@@ -68,6 +68,8 @@ function commitRowMatchesStored(a: Commit, b: Commit): boolean {
 }
 
 export default function App() {
+  const [activeWorkspaceTab, setActiveWorkspaceTab] = useState<"changes" | "history">("changes");
+  const [isInspectorCollapsed, setIsInspectorCollapsed] = useState(false);
   const [folderPathInput, setFolderPathInput] = useState("");
   const [openRepositoryError, setOpenRepositoryError] = useState<AppError | null>(
     null
@@ -162,6 +164,22 @@ export default function App() {
   }, [statusEntries]);
   const branchEntries = branchListQuery.data ?? [];
   const historyEntries = commitHistoryQuery.data ?? [];
+  const selectedWorkingEntry = useMemo(
+    () =>
+      statusEntries.find((entry) => {
+        if (!selectedWorkingDiff || (entry.group !== "staged" && entry.group !== "unstaged")) {
+          return false;
+        }
+
+        return (
+          workingDiffSelectionKey({
+            path: normalizeWorkingTreeFilePath(entry.path),
+            scope: entry.group === "staged" ? "staged" : "unstaged",
+          }) === workingDiffSelectionKey(selectedWorkingDiff)
+        );
+      }) ?? null,
+    [statusEntries, selectedWorkingDiff]
+  );
   const commitDiffFiles = useMemo(() => {
     const summaries = commitChangedFilesQuery.data ?? [];
     const selectedPath = selectedCommitDiffFilePath;
@@ -203,7 +221,7 @@ export default function App() {
       return "Message required.";
     }
     if (createCommitMutation.isPending) {
-      return "Creating commit…";
+      return "Creating commit...";
     }
     return "Ready to commit staged changes.";
   }, [stagedCount, commitMessage, createCommitMutation.isPending]);
@@ -224,6 +242,7 @@ export default function App() {
     setDiscardError(null);
     setDiscardSuccessMessage(null);
     setUnstageError(null);
+    setActiveWorkspaceTab("changes");
     openOrActivateTabFromRepository(repository);
   };
 
@@ -276,6 +295,7 @@ export default function App() {
     setUnstageError(null);
     setOpenRepositoryError(null);
     setRecentsPersistWarning(null);
+    setActiveWorkspaceTab("changes");
   }, [activeRepositoryId]);
 
   useEffect(() => {
@@ -575,298 +595,429 @@ export default function App() {
   };
 
   return (
-    <div className="flex h-screen flex-col bg-zinc-950 text-zinc-100">
-      <header className="flex shrink-0 items-stretch gap-2 border-b border-zinc-800 bg-zinc-950 pr-2">
-        <RepositoryTabBar
-          tabs={openRepositoryTabs}
-          activeRepositoryId={activeRepositoryId}
-          onSelectTab={setActiveRepositoryId}
-          onCloseTab={closeRepositoryTab}
-        />
-        <div className="flex shrink-0 items-center py-1">
-          <button
-            type="button"
-            onClick={() => {
-              void handleSelectFolderAndOpenRepository();
-            }}
-            disabled={openRepositoryMutation.isPending}
-            className="rounded border border-zinc-600 bg-zinc-800 px-3 py-1.5 text-xs font-medium text-zinc-100 transition hover:bg-zinc-700 disabled:cursor-not-allowed disabled:opacity-50"
-          >
-            {openRepositoryMutation.isPending ? "Opening…" : "Open Repository"}
-          </button>
+    <div className="app-shell flex h-screen flex-col">
+      <header className="app-topbar flex shrink-0 items-center gap-3 border-b px-3 py-2">
+        <div className="min-w-0 flex-1">
+          <RepositoryTabBar
+            tabs={openRepositoryTabs}
+            activeRepositoryId={activeRepositoryId}
+            onSelectTab={setActiveRepositoryId}
+            onCloseTab={closeRepositoryTab}
+          />
         </div>
+
+        <div className="hidden min-w-0 flex-[0_1_360px] items-center xl:flex">
+          <div className="min-w-0 flex-1 rounded-[var(--radius-md)] border border-[var(--color-divider)] bg-[rgba(11,18,32,0.52)] px-3 py-2">
+            <p className="truncate text-xs font-semibold text-[var(--color-text)]">
+              {selectedRepository?.name ?? "No repository selected"}
+            </p>
+            <p
+              className="truncate text-[11px] text-[var(--color-text-secondary)]"
+              title={selectedRepository?.rootPath ?? undefined}
+            >
+              {selectedRepository?.currentBranch
+                ? `${selectedRepository.currentBranch} | ${selectedRepository.rootPath}`
+                : "Open a repository to start working"}
+            </p>
+          </div>
+        </div>
+
+        <button
+          type="button"
+          onClick={() => {
+            void handleSelectFolderAndOpenRepository();
+          }}
+          disabled={openRepositoryMutation.isPending}
+          className="ui-button-primary shrink-0 px-3 py-2 text-xs font-semibold disabled:cursor-not-allowed disabled:opacity-50"
+        >
+          {openRepositoryMutation.isPending ? "Opening..." : "Open Repository"}
+        </button>
       </header>
 
       <div className="flex min-h-0 flex-1">
-      <aside className="w-72 shrink-0 border-r border-zinc-800 p-4">
-        <h1 className="mb-4 text-sm font-semibold uppercase tracking-wide text-zinc-400">
-          Repositories
-        </h1>
-        <RecentRepositoriesList
-          entries={recentRepositoriesQuery.data ?? []}
-          isLoading={recentRepositoriesQuery.isLoading}
-          loadErrorMessage={recentRepositoriesLoadErrorMessage}
-          removeErrorMessage={recentRepositoriesRemoveErrorMessage}
-          currentRootPath={selectedRepository?.rootPath ?? null}
-          isOpenPending={openRepositoryMutation.isPending}
-          onOpenRecent={(rootPath) => {
-            void handleOpenRecentRepository(rootPath);
-          }}
-          onRemoveRecent={handleRemoveRecentRepository}
-          removePendingRootPath={
-            removeRecentRepositoryMutation.isPending
-              ? removeRecentRepositoryMutation.variables?.rootPath ?? null
-              : null
-          }
-        />
-        <details className="mt-3 rounded border border-zinc-800/70 bg-zinc-950/50">
-          <summary className="cursor-pointer list-none px-2.5 py-2 text-[11px] font-medium text-zinc-500 transition-colors hover:text-zinc-400 [&::-webkit-details-marker]:hidden">
-            Open by folder path (advanced)
-          </summary>
-          <div className="space-y-2 border-t border-zinc-800/80 px-2.5 pb-2.5 pt-2">
-            <p className="text-[10px] leading-relaxed text-zinc-600">
-              Paste a local folder path if the picker is not available. Primary flow:{" "}
-              <span className="text-zinc-500">Open Repository</span> in the tab bar or Recents.
-            </p>
-            <form className="space-y-2" onSubmit={handleOpenRepository}>
-              <label className="sr-only" htmlFor="repo-path-input">
-                Repository folder path
-              </label>
-              <input
-                id="repo-path-input"
-                type="text"
-                value={folderPathInput}
-                onChange={(event) => setFolderPathInput(event.target.value)}
-                placeholder="e.g. C:\\Users\\you\\project"
-                className="w-full rounded border border-zinc-700 bg-zinc-900 px-2.5 py-1.5 text-xs text-zinc-100 outline-none transition focus:border-zinc-500"
-              />
-              <button
-                type="submit"
-                disabled={openRepositoryMutation.isPending || folderPathInput.trim().length === 0}
-                className="w-full rounded border border-zinc-700 bg-zinc-900 px-2.5 py-1.5 text-xs font-medium text-zinc-300 transition hover:bg-zinc-800 disabled:cursor-not-allowed disabled:opacity-50"
-              >
-                {openRepositoryMutation.isPending ? "Opening…" : "Open this path"}
-              </button>
-            </form>
-          </div>
-        </details>
-
-        {recentsPersistWarning && (
-          <p
-            className="mb-3 text-xs text-amber-200/90"
-            role="status"
-          >
-            Repository opened, but recent list was not updated: {recentsPersistWarning.message}
-          </p>
-        )}
-
-        {selectedRepository && (
-          <BranchPanel
-            branches={branchEntries}
-            isLoading={branchListQuery.isLoading}
-            loadErrorMessage={
-              branchListQuery.isError
-                ? normalizeAppError(branchListQuery.error, {
-                    message: "Failed to load branches",
-                  }).message
+        <aside className="app-sidebar flex w-[260px] shrink-0 flex-col border-r px-3 py-4">
+          <h1 className="mb-3 text-[11px] font-semibold uppercase tracking-[0.18em] text-[var(--color-text-secondary)]">
+            Navigator
+          </h1>
+          <RecentRepositoriesList
+            entries={recentRepositoriesQuery.data ?? []}
+            isLoading={recentRepositoriesQuery.isLoading}
+            loadErrorMessage={recentRepositoriesLoadErrorMessage}
+            removeErrorMessage={recentRepositoriesRemoveErrorMessage}
+            currentRootPath={selectedRepository?.rootPath ?? null}
+            isOpenPending={openRepositoryMutation.isPending}
+            onOpenRecent={(rootPath) => {
+              void handleOpenRecentRepository(rootPath);
+            }}
+            onRemoveRecent={handleRemoveRecentRepository}
+            removePendingRootPath={
+              removeRecentRepositoryMutation.isPending
+                ? removeRecentRepositoryMutation.variables?.rootPath ?? null
                 : null
             }
-            branchError={branchError}
-            newBranchName={newBranchName}
-            isBranchMutating={isBranchMutating}
-            isCreateBranchPending={createBranchMutation.isPending}
-            canCreateBranch={canCreateBranch}
-            onNewBranchNameChange={setNewBranchName}
-            onCheckoutBranch={(branchName) => {
-              void handleCheckoutBranch(branchName);
-            }}
-            onCreateBranch={() => {
-              void handleCreateBranch();
-            }}
           />
-        )}
-      </aside>
 
-      <main className="min-w-0 flex-1 overflow-auto p-6">
-        <h2 className="mb-4 text-sm font-semibold uppercase tracking-wide text-zinc-400">
-          Workspace
-        </h2>
+          {recentsPersistWarning && (
+            <p
+              className="mt-3 rounded-[var(--radius-md)] border border-[var(--color-warning)]/45 bg-[var(--color-warning-soft)] px-2.5 py-2 text-xs text-[var(--color-text)]"
+              role="status"
+            >
+              Repository opened, but recent list was not updated: {recentsPersistWarning.message}
+            </p>
+          )}
 
-        {openRepositoryMutation.isPending && (
-          <div className="rounded border border-zinc-800 bg-zinc-900 p-4 text-sm text-zinc-300">
-            Loading repository metadata...
-          </div>
-        )}
-
-        {!openRepositoryMutation.isPending && openRepositoryError && (
-          <div className="rounded border border-red-700/50 bg-red-950/40 p-4 text-sm text-red-200">
-            <p className="font-medium">{openRepositoryError.message}</p>
-            <p className="mt-1 text-xs text-red-300/90">Code: {openRepositoryError.code}</p>
-          </div>
-        )}
-
-        {!openRepositoryMutation.isPending && !openRepositoryError && selectedRepository && (
-          <div className="space-y-4">
-            <HistoryListPanel
-              isLoading={commitHistoryQuery.isLoading}
-              errorMessage={
-                commitHistoryQuery.isError
-                  ? normalizeAppError(commitHistoryQuery.error, {
-                      message: "Failed to load commit history",
+          {selectedRepository && (
+            <BranchPanel
+              branches={branchEntries}
+              isLoading={branchListQuery.isLoading}
+              loadErrorMessage={
+                branchListQuery.isError
+                  ? normalizeAppError(branchListQuery.error, {
+                      message: "Failed to load branches",
                     }).message
                   : null
               }
-              commits={historyEntries}
-              selectedCommitHash={selectedCommit?.hash ?? null}
-              onSelectCommit={setSelectedCommit}
-              onClearSelection={() => setSelectedCommit(null)}
-            />
-
-            <WorkingChangesPanel
-              isLoading={repositoryStatusQuery.isLoading}
-              errorMessage={
-                repositoryStatusQuery.isError
-                  ? normalizeAppError(repositoryStatusQuery.error, {
-                      message: "Failed to load changed files",
-                    }).message
-                  : null
-              }
-              entries={statusEntries}
-              selectedDiff={selectedWorkingDiff}
-              onSelectDiff={setSelectedWorkingDiff}
-              onDiscardFile={handleDiscardFile}
-              isDiscardPending={(filePath) =>
-                discardChangesMutation.isPending &&
-                discardChangesMutation.variables?.includes(filePath) === true
-              }
-              onUnstageFile={(filePath) => {
-                void handleUnstageFile(filePath);
+              branchError={branchError}
+              newBranchName={newBranchName}
+              isBranchMutating={isBranchMutating}
+              isCreateBranchPending={createBranchMutation.isPending}
+              canCreateBranch={canCreateBranch}
+              onNewBranchNameChange={setNewBranchName}
+              onCheckoutBranch={(branchName) => {
+                void handleCheckoutBranch(branchName);
               }}
-              isUnstagePending={(filePath) => {
-                const normalized = normalizeWorkingTreeFilePath(filePath);
-                return (
-                  unstageFilesMutation.isPending &&
-                  (unstageFilesMutation.variables?.some(
-                    (p) => normalizeWorkingTreeFilePath(p) === normalized
-                  ) ??
-                    false)
-                );
-              }}
-              discardError={discardError}
-              discardSuccessMessage={discardSuccessMessage}
-              unstageError={unstageError}
-              onDiscardFlowOpen={() => {
-                setDiscardError(null);
-                setDiscardSuccessMessage(null);
-                setUnstageError(null);
+              onCreateBranch={() => {
+                void handleCreateBranch();
               }}
             />
+          )}
 
-            {!selectedCommit && (
-              <UnifiedDiffPanel
-                title={
-                  selectedWorkingDiff?.scope === "staged"
-                    ? "Staged Diff (index vs HEAD)"
-                    : "Working Tree Diff (unstaged vs index)"
-                }
-                isLoading={workingDiffQuery.isLoading}
-                errorMessage={
-                  workingDiffQuery.isError
-                    ? normalizeAppError(workingDiffQuery.error, {
-                        message: "Failed to load working diff",
-                      }).message
-                    : null
-                }
-                files={workingDiffFiles}
-                selectedFilePath={selectedWorkingDiff?.path ?? null}
-                onSelectFilePath={(path) =>
-                  setSelectedWorkingDiff({
-                    path: normalizeWorkingTreeFilePath(path),
-                    scope: workingDiffScopeForFileList,
-                  })
-                }
-                emptyMessage="Select a changed file to view its diff."
-                workingTreeScope={selectedWorkingDiff?.scope}
-              />
-            )}
+          <details className="mt-auto pt-4">
+            <summary className="cursor-pointer list-none text-[11px] font-medium text-[var(--color-text-secondary)] transition-colors hover:text-[var(--color-text)] [&::-webkit-details-marker]:hidden">
+              Open by folder path
+            </summary>
+            <div className="space-y-2 pt-3">
+              <form className="space-y-2" onSubmit={handleOpenRepository}>
+                <label className="sr-only" htmlFor="repo-path-input">
+                  Repository folder path
+                </label>
+                <input
+                  id="repo-path-input"
+                  type="text"
+                  value={folderPathInput}
+                  onChange={(event) => setFolderPathInput(event.target.value)}
+                  placeholder="e.g. C:\\Users\\you\\project"
+                  className="ui-input w-full px-2.5 py-1.5 text-xs"
+                />
+                <button
+                  type="submit"
+                  disabled={openRepositoryMutation.isPending || folderPathInput.trim().length === 0}
+                  className="ui-button-secondary w-full px-2.5 py-1.5 text-xs font-medium disabled:cursor-not-allowed disabled:opacity-50"
+                >
+                  {openRepositoryMutation.isPending ? "Opening..." : "Open this path"}
+                </button>
+              </form>
+            </div>
+          </details>
+        </aside>
 
-            {selectedCommit && (
-              <UnifiedDiffPanel
-                title={`Commit Diff (${selectedCommit.shortHash})`}
-                isLoading={commitDiffPanelLoading}
-                isContentLoading={commitDiffContentLoading}
-                errorMessage={
-                  commitChangedFilesQuery.isError
-                    ? normalizeAppError(commitChangedFilesQuery.error, {
-                        message: "Failed to load commit file list",
-                      }).message
-                    : commitDiffQuery.isError
-                      ? normalizeAppError(commitDiffQuery.error, {
-                          message: "Failed to load commit diff",
-                        }).message
-                      : null
-                }
-                files={commitDiffFiles}
-                selectedFilePath={selectedCommitDiffFilePath}
-                onSelectFilePath={setSelectedCommitDiffFilePath}
-                emptyMessage="No diff files found for this commit."
-              />
-            )}
-          </div>
-        )}
-
-        {!openRepositoryMutation.isPending &&
-          !openRepositoryError &&
-          !selectedRepository && (
-            <div className="rounded border border-zinc-800 bg-zinc-900 p-4 text-sm text-zinc-300">
-              <p className="font-medium text-zinc-200">No repository open</p>
-              <p className="mt-2 text-zinc-400">
-                Use <span className="text-zinc-300">Open Repository</span> in the tab bar to select a
-                folder, or open one from Recent below.
-              </p>
+      <section className="app-main min-w-0 flex-1">
+        <div className="flex h-full min-h-0 flex-col">
+          {openRepositoryMutation.isPending && (
+            <div className="px-4 pt-4">
+              <div className="ui-panel p-4 text-sm text-[var(--color-text)]">
+                Loading repository metadata...
+              </div>
             </div>
           )}
-      </main>
 
-      <aside className="w-80 shrink-0 border-l border-zinc-800 p-4">
-        <div className="flex flex-col gap-4">
-          <SelectedCommitDetailPanel
-            commit={selectedCommit}
-            repositoryPath={selectedRepository?.rootPath ?? null}
-          />
-          {selectedRepository && (
-            <CommitPanel
-              stagedCount={stagedCount}
-              commitMessage={commitMessage}
-              commitError={commitError}
-              commitSuccessMessage={commitSuccessMessage}
-              commitFooterHint={commitFooterHint}
-              isSubmitting={createCommitMutation.isPending}
-              canCreateCommit={canCreateCommit}
-              onCommitMessageChange={(value) => {
-                setCommitSuccessMessage(null);
-                setCommitError(null);
-                setCommitMessage(value);
-              }}
-              onDismissCommitSuccess={() => setCommitSuccessMessage(null)}
-              onSubmit={() => {
-                void handleSubmitCommit();
-              }}
-              aiSuggestions={aiSuggestions}
-              isGeneratingCommitMessage={generateCommitMessageMutation.isPending}
-              generateCommitMessageError={aiGenerateError}
-              showTruncatedDiffNotice={aiTruncatedDiff}
-              allowSendStagedDiffToAi={allowStagedDiffForAi}
-              onAllowSendStagedDiffToAiChange={setAllowStagedDiffForAi}
-              onGenerateCommitMessage={() => {
-                void handleGenerateCommitMessage();
-              }}
-              onSelectCommitMessageSuggestion={handleSelectCommitMessageSuggestion}
-            />
+          {!openRepositoryMutation.isPending && openRepositoryError && (
+            <div className="px-4 pt-4">
+              <div className="rounded-[var(--radius-lg)] border border-[var(--color-danger)]/50 bg-[var(--color-danger-soft)] p-4 text-sm text-[var(--color-text)]">
+                <p className="font-medium">{openRepositoryError.message}</p>
+                <p className="mt-1 text-xs text-[var(--color-text-secondary)]">Code: {openRepositoryError.code}</p>
+              </div>
+            </div>
+          )}
+
+          {!openRepositoryMutation.isPending && !openRepositoryError && !selectedRepository && (
+            <div className="flex min-h-0 flex-1 items-center justify-center p-6">
+              <div className="ui-empty-state max-w-lg p-6 text-sm">
+                <p className="font-medium text-[var(--color-text)]">No repository open</p>
+                <p className="mt-2 text-[var(--color-text-secondary)]">
+                  Use <span className="text-[var(--color-text)]">Open Repository</span> in the top bar, or open one
+                  from Recent in the left sidebar.
+                </p>
+              </div>
+            </div>
+          )}
+
+          {!openRepositoryMutation.isPending && !openRepositoryError && selectedRepository && (
+            <>
+              <div className="flex min-h-0 flex-1 overflow-hidden px-4 pb-4 pt-4">
+                <div className="flex min-w-0 flex-1 overflow-hidden rounded-l-[var(--radius-xl)] border border-r-0 border-[var(--color-divider)] bg-[rgba(11,18,32,0.36)]">
+                  <div className="flex min-w-0 flex-1 flex-col">
+                    <div className="flex items-center justify-between border-b border-[var(--color-divider)] px-4 py-3">
+                      <div className="min-w-0">
+                        <p className="truncate text-sm font-semibold text-[var(--color-text)]">
+                          {selectedRepository.name}
+                        </p>
+                        <p
+                          className="truncate text-[11px] text-[var(--color-text-secondary)]"
+                          title={selectedRepository.rootPath}
+                        >
+                          {selectedRepository.currentBranch} | {selectedRepository.rootPath}
+                        </p>
+                      </div>
+
+                      <div className="flex shrink-0 items-center gap-2">
+                        <button
+                          type="button"
+                          onClick={() => setActiveWorkspaceTab("changes")}
+                          className={`px-3 py-1.5 text-xs font-medium ${
+                            activeWorkspaceTab === "changes" ? "ui-button-primary" : "ui-tab"
+                          }`}
+                        >
+                          Changes
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setActiveWorkspaceTab("history")}
+                          className={`px-3 py-1.5 text-xs font-medium ${
+                            activeWorkspaceTab === "history" ? "ui-button-primary" : "ui-tab"
+                          }`}
+                        >
+                          History
+                        </button>
+                      </div>
+                    </div>
+
+                    <div className="flex min-h-0 flex-1 flex-col">
+                      {activeWorkspaceTab === "changes" ? (
+                        <div className="min-h-0 flex-1 px-4 py-3">
+                          <UnifiedDiffPanel
+                            title={selectedWorkingDiff?.scope === "staged" ? "Staged Diff" : "Working Tree Diff"}
+                            isLoading={workingDiffQuery.isLoading}
+                            errorMessage={
+                              workingDiffQuery.isError
+                                ? normalizeAppError(workingDiffQuery.error, {
+                                    message: "Failed to load working diff",
+                                  }).message
+                                : null
+                            }
+                            files={workingDiffFiles}
+                            selectedFilePath={selectedWorkingDiff?.path ?? null}
+                            onSelectFilePath={(path) =>
+                              setSelectedWorkingDiff({
+                                path: normalizeWorkingTreeFilePath(path),
+                                scope: workingDiffScopeForFileList,
+                              })
+                            }
+                            emptyMessage="Select a changed file to view its diff."
+                            workingTreeScope={selectedWorkingDiff?.scope}
+                          />
+                        </div>
+                      ) : (
+                        <>
+                          <div className="min-h-0 flex-[0.9] border-b border-[var(--color-divider)] px-4 py-3">
+                            <HistoryListPanel
+                              isLoading={commitHistoryQuery.isLoading}
+                              errorMessage={
+                                commitHistoryQuery.isError
+                                  ? normalizeAppError(commitHistoryQuery.error, {
+                                      message: "Failed to load commit history",
+                                    }).message
+                                  : null
+                              }
+                              commits={historyEntries}
+                              selectedCommitHash={selectedCommit?.hash ?? null}
+                              onSelectCommit={setSelectedCommit}
+                              onClearSelection={() => setSelectedCommit(null)}
+                            />
+                          </div>
+
+                          <div className="min-h-0 flex-[1.45] px-4 py-3">
+                            <UnifiedDiffPanel
+                              title={selectedCommit ? `Commit Diff (${selectedCommit.shortHash})` : "Commit Diff"}
+                              isLoading={commitDiffPanelLoading}
+                              isContentLoading={commitDiffContentLoading}
+                              errorMessage={
+                                commitChangedFilesQuery.isError
+                                  ? normalizeAppError(commitChangedFilesQuery.error, {
+                                      message: "Failed to load commit file list",
+                                    }).message
+                                  : commitDiffQuery.isError
+                                    ? normalizeAppError(commitDiffQuery.error, {
+                                        message: "Failed to load commit diff",
+                                      }).message
+                                    : null
+                              }
+                              files={commitDiffFiles}
+                              selectedFilePath={selectedCommitDiffFilePath}
+                              onSelectFilePath={setSelectedCommitDiffFilePath}
+                              emptyMessage="Select a commit to inspect its diff."
+                            />
+                          </div>
+                        </>
+                      )}
+                    </div>
+                  </div>
+                </div>
+
+                <aside
+                  className={`app-sidebar flex shrink-0 flex-col rounded-r-[var(--radius-xl)] border border-[var(--color-divider)] bg-[rgba(15,23,42,0.54)] transition-all duration-200 ${
+                    isInspectorCollapsed ? "w-12" : "w-[296px]"
+                  }`}
+                >
+                  <div className="flex items-center justify-between border-b border-[var(--color-divider)] px-3 py-3">
+                    {!isInspectorCollapsed && (
+                      <div>
+                        <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-[var(--color-text-secondary)]">
+                          Inspector
+                        </p>
+                        <p className="text-[11px] text-[var(--color-text-muted)]">
+                          {activeWorkspaceTab === "history" ? "Metadata and actions" : "Selected file info"}
+                        </p>
+                      </div>
+                    )}
+                    <button
+                      type="button"
+                      onClick={() => setIsInspectorCollapsed((current) => !current)}
+                      className="ui-button-ghost ml-auto px-2 py-1 text-xs"
+                      title={isInspectorCollapsed ? "Expand inspector" : "Collapse inspector"}
+                    >
+                      {isInspectorCollapsed ? "<" : ">"}
+                    </button>
+                  </div>
+
+                  {!isInspectorCollapsed && (
+                    <div className="min-h-0 flex-1 overflow-auto p-3">
+                      {activeWorkspaceTab === "history" ? (
+                        <SelectedCommitDetailPanel
+                          commit={selectedCommit}
+                          repositoryPath={selectedRepository.rootPath}
+                        />
+                      ) : (
+                        <div className="space-y-3 text-sm">
+                          <div>
+                            <WorkingChangesPanel
+                              isLoading={repositoryStatusQuery.isLoading}
+                              errorMessage={
+                                repositoryStatusQuery.isError
+                                  ? normalizeAppError(repositoryStatusQuery.error, {
+                                      message: "Failed to load changed files",
+                                    }).message
+                                  : null
+                              }
+                              entries={statusEntries}
+                              selectedDiff={selectedWorkingDiff}
+                              onSelectDiff={setSelectedWorkingDiff}
+                              onDiscardFile={handleDiscardFile}
+                              isDiscardPending={(filePath) =>
+                                discardChangesMutation.isPending &&
+                                discardChangesMutation.variables?.includes(filePath) === true
+                              }
+                              onUnstageFile={(filePath) => {
+                                void handleUnstageFile(filePath);
+                              }}
+                              isUnstagePending={(filePath) => {
+                                const normalized = normalizeWorkingTreeFilePath(filePath);
+                                return (
+                                  unstageFilesMutation.isPending &&
+                                  (unstageFilesMutation.variables?.some(
+                                    (p) => normalizeWorkingTreeFilePath(p) === normalized
+                                  ) ?? false)
+                                );
+                              }}
+                              discardError={discardError}
+                              discardSuccessMessage={discardSuccessMessage}
+                              unstageError={unstageError}
+                              onDiscardFlowOpen={() => {
+                                setDiscardError(null);
+                                setDiscardSuccessMessage(null);
+                                setUnstageError(null);
+                              }}
+                            />
+                          </div>
+
+                          {selectedWorkingEntry && (
+                            <div className="space-y-2.5 border-t border-[var(--color-divider)] pt-3">
+                              <h2 className="text-[11px] font-semibold uppercase tracking-[0.16em] text-[var(--color-text-secondary)]">
+                                File Info
+                              </h2>
+                              <div className="ui-card px-3 py-2.5">
+                                <p className="text-[10px] font-semibold uppercase tracking-wide text-[var(--color-text-muted)]">
+                                  Path
+                                </p>
+                                <p className="mt-1 break-all font-mono text-xs text-[var(--color-text)]">
+                                  {selectedWorkingEntry.path}
+                                </p>
+                              </div>
+                              <div className="ui-card px-3 py-2.5">
+                                <p className="text-[10px] font-semibold uppercase tracking-wide text-[var(--color-text-muted)]">
+                                  Status
+                                </p>
+                                <p className="mt-1 text-xs capitalize text-[var(--color-text)]">
+                                  {selectedWorkingEntry.status}
+                                </p>
+                              </div>
+                              <div className="ui-card px-3 py-2.5">
+                                <p className="text-[10px] font-semibold uppercase tracking-wide text-[var(--color-text-muted)]">
+                                  Scope
+                                </p>
+                                <p className="mt-1 text-xs text-[var(--color-text)]">
+                                  {selectedWorkingEntry.group === "staged" ? "Staged" : "Unstaged"}
+                                </p>
+                              </div>
+                            </div>
+                          )}
+                        </div>
+                      )}
+                    </div>
+                  )}
+                </aside>
+              </div>
+
+              <div className="border-t border-[var(--color-divider)] bg-[rgba(11,18,32,0.56)] px-4 py-3 backdrop-blur-sm">
+                <CommitPanel
+                  stagedCount={stagedCount}
+                  commitMessage={commitMessage}
+                  commitError={commitError}
+                  commitSuccessMessage={commitSuccessMessage}
+                  commitFooterHint={commitFooterHint}
+                  isSubmitting={createCommitMutation.isPending}
+                  canCreateCommit={canCreateCommit}
+                  onCommitMessageChange={(value) => {
+                    setCommitSuccessMessage(null);
+                    setCommitError(null);
+                    setCommitMessage(value);
+                  }}
+                  onDismissCommitSuccess={() => setCommitSuccessMessage(null)}
+                  onSubmit={() => {
+                    void handleSubmitCommit();
+                  }}
+                  aiSuggestions={aiSuggestions}
+                  isGeneratingCommitMessage={generateCommitMessageMutation.isPending}
+                  generateCommitMessageError={aiGenerateError}
+                  showTruncatedDiffNotice={aiTruncatedDiff}
+                  allowSendStagedDiffToAi={allowStagedDiffForAi}
+                  onAllowSendStagedDiffToAiChange={setAllowStagedDiffForAi}
+                  onGenerateCommitMessage={() => {
+                    void handleGenerateCommitMessage();
+                  }}
+                  onSelectCommitMessageSuggestion={handleSelectCommitMessageSuggestion}
+                />
+              </div>
+            </>
           )}
         </div>
-      </aside>
+      </section>
       </div>
     </div>
   );
 }
+
+
+
+
+

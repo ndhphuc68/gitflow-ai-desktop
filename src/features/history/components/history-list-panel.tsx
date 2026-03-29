@@ -18,39 +18,39 @@ export function HistoryListPanel({
   onClearSelection,
 }: HistoryListPanelProps) {
   return (
-    <section className="rounded border border-zinc-800 bg-zinc-900 p-4 text-sm">
-      <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
-        <h3 className="text-xs font-semibold uppercase tracking-wide text-zinc-400">
-          Commit History
+    <section className="flex h-full min-h-0 flex-col text-sm">
+      <div className="mb-3 flex flex-wrap items-center justify-between gap-2 px-1">
+        <h3 className="text-[11px] font-semibold uppercase tracking-[0.16em] text-[var(--color-text-secondary)]">
+          History
         </h3>
         <div className="flex items-center gap-2">
           {selectedCommitHash && onClearSelection ? (
             <button
               type="button"
               onClick={onClearSelection}
-              className="rounded border border-zinc-600 bg-zinc-950 px-2 py-0.5 text-[11px] font-medium text-zinc-300 transition hover:border-zinc-500 hover:text-zinc-100"
+              className="ui-button-secondary px-2 py-0.5 text-[11px] font-medium"
             >
               Clear selection
             </button>
           ) : null}
-          <span className="text-xs text-zinc-500">{commits.length} commits</span>
+          <span className="text-xs text-[var(--color-text-secondary)]">{commits.length} commits</span>
         </div>
       </div>
 
-      {isLoading && <p className="text-zinc-300">Loading commit history...</p>}
+      {isLoading && <p className="text-[var(--color-text-secondary)]">Loading commit history...</p>}
 
       {errorMessage && (
-        <div className="rounded border border-red-700/50 bg-red-950/40 p-3 text-red-200">
+        <div className="rounded-[var(--radius-md)] border border-[var(--color-danger)]/50 bg-[var(--color-danger-soft)] p-3 text-[var(--color-text)]">
           <p className="font-medium">{errorMessage}</p>
         </div>
       )}
 
       {!isLoading && !errorMessage && commits.length === 0 && (
-        <p className="text-zinc-300">No commits found for this branch.</p>
+        <p className="text-[var(--color-text-secondary)]">No commits found for this branch.</p>
       )}
 
       {!isLoading && !errorMessage && commits.length > 0 && (
-        <ul className="max-h-80 space-y-1 overflow-auto">
+        <ul className="min-h-0 flex-1 space-y-1 overflow-auto pr-1">
           {commits.map((commit) => {
             const isSelected = selectedCommitHash === commit.hash;
             return (
@@ -59,10 +59,10 @@ export function HistoryListPanel({
                   type="button"
                   onClick={() => onSelectCommit(commit)}
                   aria-current={isSelected ? "true" : undefined}
-                  className={`w-full rounded border py-2 pr-3 text-left transition ${
+                  className={`w-full rounded-[var(--radius-md)] py-2 pr-3 text-left transition ${
                     isSelected
-                      ? "border-sky-500/80 border-l-4 border-l-sky-500 bg-sky-950/55 pl-2 ring-2 ring-sky-500/35 ring-offset-2 ring-offset-zinc-900"
-                      : "border-zinc-800 bg-zinc-950 pl-3 hover:border-zinc-600"
+                        ? "ui-row-selected border-l-4 border-l-[var(--color-primary)] pl-2"
+                        : "ui-table-row pl-3"
                   }`}
                   title={commit.hash}
                 >
@@ -70,20 +70,20 @@ export function HistoryListPanel({
                     <span
                       className={`rounded border px-1.5 py-0.5 text-[10px] uppercase tracking-wide ${
                         isSelected
-                          ? "border-sky-600/60 bg-sky-950/80 text-sky-200"
-                          : "border-zinc-700 text-zinc-300"
+                          ? "border-[var(--color-primary)]/60 bg-[color-mix(in_srgb,var(--color-primary)_18%,transparent)] text-[var(--color-primary-soft)]"
+                          : "border-[var(--color-border)] text-[var(--color-text-secondary)]"
                       }`}
                     >
                       {commit.shortHash}
                     </span>
                     <span
-                      className={`truncate ${isSelected ? "font-medium text-sky-50" : "text-zinc-100"}`}
+                      className={`truncate ${isSelected ? "font-medium text-[var(--color-text)]" : "text-[var(--color-text)]"}`}
                     >
                       {commit.subject}
                     </span>
                   </div>
-                  <p className="mt-1 text-xs text-zinc-400">
-                    {commit.authorName} • {new Date(commit.authoredAt).toLocaleString()}
+                  <p className="mt-1 text-xs text-[var(--color-text-secondary)]">
+                    {commit.authorName} - {new Date(commit.authoredAt).toLocaleString()}
                   </p>
                 </button>
               </li>
@@ -94,3 +94,5 @@ export function HistoryListPanel({
     </section>
   );
 }
+
+

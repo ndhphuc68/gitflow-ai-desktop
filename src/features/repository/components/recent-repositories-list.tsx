@@ -31,30 +31,30 @@ export function RecentRepositoriesList({
   const showEmpty = !isLoading && !loadErrorMessage && entries.length === 0;
 
   return (
-    <div className="mb-4 border-b border-zinc-800 pb-4">
-      <h2 className="mb-2 text-xs font-semibold uppercase tracking-wide text-zinc-500">
+    <div className="border-b border-[var(--color-divider)] pb-4">
+      <h2 className="mb-2 text-[11px] font-semibold uppercase tracking-[0.18em] text-[var(--color-text-secondary)]">
         Recent
       </h2>
       {isLoading && (
-        <p className="text-xs text-zinc-500" role="status">
-          Loading…
+        <p className="text-xs text-[var(--color-text-secondary)]" role="status">
+          Loading...
         </p>
       )}
       {!isLoading && loadErrorMessage && (
-        <p className="text-xs text-red-300/90" role="alert">
+        <p className="text-xs text-[var(--color-danger)]" role="alert">
           {loadErrorMessage}
         </p>
       )}
       {!isLoading && removeErrorMessage && (
-        <p className="mb-2 text-xs text-red-300/90" role="alert">
+        <p className="mb-2 text-xs text-[var(--color-danger)]" role="alert">
           {removeErrorMessage}
         </p>
       )}
       {showEmpty && (
-        <p className="text-xs text-zinc-500">No recent repositories yet.</p>
+        <p className="text-xs text-[var(--color-text-muted)]">No recent repositories yet.</p>
       )}
       {showList && (
-        <ul className="max-h-48 space-y-1 overflow-y-auto pr-0.5">
+        <ul className="max-h-56 space-y-1 overflow-y-auto pr-0.5">
           {entries.map((entry) => {
             const isActive = repositoryRootPathsEqual(currentRootPath, entry.rootPath);
             const isRemovePending = repositoryRootPathsEqual(
@@ -70,15 +70,15 @@ export function RecentRepositoriesList({
                     onOpenRecent(entry.rootPath);
                   }}
                   aria-label={`Open repository ${entry.name}`}
-                  className={`min-w-0 flex-1 rounded border px-2 py-1.5 text-left text-xs transition disabled:cursor-not-allowed disabled:opacity-50 ${
+                  className={`min-w-0 flex-1 rounded-[var(--radius-md)] px-2.5 py-2 text-left text-xs disabled:cursor-not-allowed disabled:opacity-50 ${
                     isActive
-                      ? "border-zinc-500 bg-zinc-800/80 text-zinc-50"
-                      : "border-transparent bg-zinc-900/60 text-zinc-200 hover:border-zinc-700 hover:bg-zinc-800/60"
+                      ? "ui-row-selected"
+                      : "ui-sidebar-item text-[var(--color-text)]"
                   }`}
                 >
                   <span className="block truncate font-medium">{entry.name}</span>
                   <span
-                    className="mt-0.5 block truncate font-mono text-[10px] text-zinc-500"
+                    className="mt-0.5 block truncate font-mono text-[10px] text-[var(--color-text-muted)]"
                     title={entry.rootPath}
                   >
                     {shortenRepositoryPath(entry.rootPath)}
@@ -93,9 +93,9 @@ export function RecentRepositoriesList({
                     event.stopPropagation();
                     onRemoveRecent(entry.rootPath);
                   }}
-                  className="shrink-0 rounded border border-zinc-800 px-1.5 text-xs text-zinc-500 transition hover:border-zinc-600 hover:bg-zinc-800 hover:text-zinc-200 disabled:cursor-not-allowed disabled:opacity-40"
+                  className="ui-button-ghost shrink-0 px-1.5 text-xs disabled:cursor-not-allowed disabled:opacity-40"
                 >
-                  ×
+                  x
                 </button>
               </li>
             );

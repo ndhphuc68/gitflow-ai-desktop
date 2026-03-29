@@ -58,7 +58,7 @@ export const RepositoryTabBar = memo(function RepositoryTabBar({
   return (
     <div
       ref={scrollRef}
-      className="flex min-h-9 min-w-0 flex-1 items-stretch gap-0.5 overflow-x-auto overflow-y-hidden scroll-smooth bg-zinc-950/80 px-1 py-0.5 [scrollbar-color:rgba(82,82,91,0.45)_transparent] [scrollbar-width:thin] [&::-webkit-scrollbar]:h-1 [&::-webkit-scrollbar-thumb]:rounded-full [&::-webkit-scrollbar-thumb]:bg-zinc-600/50 [&::-webkit-scrollbar-track]:bg-transparent"
+      className="flex min-h-10 min-w-0 flex-1 items-stretch gap-1 overflow-x-auto overflow-y-hidden rounded-[var(--radius-lg)] border border-[var(--color-divider)] bg-[rgba(11,18,32,0.38)] px-1 py-1 scroll-smooth"
       role="tablist"
       aria-label="Open repositories"
       aria-orientation="horizontal"

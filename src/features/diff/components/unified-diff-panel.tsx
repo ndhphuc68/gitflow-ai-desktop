@@ -17,19 +17,19 @@ type UnifiedDiffPanelProps = {
 };
 
 const LINE_CLASS: Record<DiffLine["type"], string> = {
-  context: "text-zinc-300",
-  added: "bg-emerald-950/40 text-emerald-200",
-  removed: "bg-rose-950/40 text-rose-200",
+  context: "text-[var(--color-text-secondary)]",
+  added: "bg-[var(--color-diff-added)] text-[var(--color-diff-added-line)]",
+  removed: "bg-[var(--color-diff-removed)] text-[var(--color-diff-removed-line)]",
 };
 
 const SCOPE_BADGE: Record<"staged" | "unstaged", { label: string; className: string }> = {
   staged: {
     label: "Staged",
-    className: "border-emerald-600/45 bg-emerald-950/50 text-emerald-200/95",
+    className: "border-[var(--color-success)]/45 bg-[var(--color-success-soft)] text-[var(--color-text)]",
   },
   unstaged: {
     label: "Unstaged",
-    className: "border-amber-600/40 bg-amber-950/35 text-amber-100/90",
+    className: "border-[var(--color-warning)]/45 bg-[var(--color-warning-soft)] text-[var(--color-text)]",
   },
 };
 
@@ -39,23 +39,23 @@ const CHANGE_BADGE: Record<
 > = {
   modified: {
     label: diffChangeTypeLabel("modified"),
-    className: "border-sky-600/40 bg-sky-950/40 text-sky-100/95",
+    className: "border-[var(--color-diff-modified-line)]/40 bg-[var(--color-diff-modified)] text-[var(--color-text)]",
   },
   added: {
     label: diffChangeTypeLabel("added"),
-    className: "border-emerald-600/40 bg-emerald-950/45 text-emerald-100/95",
+    className: "border-[var(--color-diff-added-line)]/40 bg-[var(--color-diff-added)] text-[var(--color-text)]",
   },
   deleted: {
     label: diffChangeTypeLabel("deleted"),
-    className: "border-rose-600/40 bg-rose-950/45 text-rose-100/95",
+    className: "border-[var(--color-diff-removed-line)]/40 bg-[var(--color-diff-removed)] text-[var(--color-text)]",
   },
   renamed: {
     label: diffChangeTypeLabel("renamed"),
-    className: "border-violet-600/40 bg-violet-950/45 text-violet-100/95",
+    className: "border-[var(--color-accent)]/40 bg-[color-mix(in_srgb,var(--color-accent)_14%,transparent)] text-[var(--color-text)]",
   },
   binary: {
     label: diffChangeTypeLabel("binary"),
-    className: "border-zinc-600/50 bg-zinc-900/80 text-zinc-300",
+    className: "border-[var(--color-border)] bg-[rgba(11,18,32,0.82)] text-[var(--color-text-secondary)]",
   },
 };
 
@@ -70,17 +70,17 @@ function DiffFileHeader({
   const changeBadge = CHANGE_BADGE[activeFile.changeType];
 
   return (
-    <div className="border-b border-zinc-800 px-3 py-2">
+    <div className="border-b border-[var(--color-divider)] px-3 py-2">
       <div className="flex min-w-0 flex-wrap items-start justify-between gap-2">
         <div className="min-w-0 flex-1">
           <p
-            className="truncate font-mono text-[13px] font-semibold leading-snug text-zinc-100"
+            className="truncate font-mono text-[13px] font-semibold leading-snug text-[var(--color-text)]"
             title={activeFile.path}
           >
             {basename}
           </p>
           {parentPath ? (
-            <p className="mt-0.5 truncate font-mono text-[11px] leading-snug text-zinc-500" title={activeFile.path}>
+            <p className="mt-0.5 truncate font-mono text-[11px] leading-snug text-[var(--color-text-muted)]" title={activeFile.path}>
               {parentPath}
             </p>
           ) : null}
@@ -101,9 +101,9 @@ function DiffFileHeader({
         </div>
       </div>
       {activeFile.oldPath && activeFile.oldPath !== activeFile.path ? (
-        <p className="mt-1.5 font-mono text-[11px] leading-snug text-zinc-500">
-          <span className="text-zinc-600">Renamed from </span>
-          <span className="text-zinc-400">{activeFile.oldPath}</span>
+        <p className="mt-1.5 font-mono text-[11px] leading-snug text-[var(--color-text-muted)]">
+          <span className="text-[var(--color-text-muted)]">Renamed from </span>
+          <span className="text-[var(--color-text-secondary)]">{activeFile.oldPath}</span>
         </p>
       ) : null}
     </div>
@@ -133,23 +133,25 @@ export function UnifiedDiffPanel({
     null;
 
   return (
-    <section className="rounded border border-zinc-800 bg-zinc-900 p-4 text-sm">
-      <div className="mb-3 flex items-center justify-between">
-        <h3 className="text-xs font-semibold uppercase tracking-wide text-zinc-400">{title}</h3>
+    <section className="flex h-full min-h-0 flex-col text-sm">
+      <div className="mb-3 flex items-center justify-between px-1">
+        <h3 className="text-[11px] font-semibold uppercase tracking-[0.16em] text-[var(--color-text-secondary)]">
+          {title}
+        </h3>
       </div>
 
-      {isLoading && <p className="text-zinc-300">Loading diff...</p>}
+      {isLoading && <p className="text-[var(--color-text-secondary)]">Loading diff...</p>}
 
       {errorMessage && (
-        <div className="rounded border border-red-700/50 bg-red-950/40 p-3 text-red-200">
+        <div className="rounded-[var(--radius-md)] border border-[var(--color-danger)]/50 bg-[var(--color-danger-soft)] p-3 text-[var(--color-text)]">
           <p className="font-medium">{errorMessage}</p>
         </div>
       )}
 
-      {!isLoading && !errorMessage && files.length === 0 && <p className="text-zinc-300">{emptyMessage}</p>}
+      {!isLoading && !errorMessage && files.length === 0 && <p className="text-[var(--color-text-secondary)]">{emptyMessage}</p>}
 
       {!isLoading && !errorMessage && files.length > 0 && activeFile && (
-        <div className="space-y-3">
+        <div className="flex min-h-0 flex-1 flex-col gap-3">
           {files.length > 1 && (
             <div className="flex gap-2 overflow-auto pb-1">
               {files.map((file) => {
@@ -163,8 +165,8 @@ export function UnifiedDiffPanel({
                     onClick={() => onSelectFilePath(file.path)}
                     className={`shrink-0 rounded-md border px-2 py-1 text-xs transition-colors ${
                       isSelected
-                        ? "border-sky-500/75 border-l-2 border-l-sky-400 bg-sky-950/50 font-medium text-sky-50 shadow-[inset_0_0_0_1px_rgba(56,189,248,0.1)]"
-                        : "border-zinc-700 border-l-2 border-l-transparent bg-zinc-950 text-zinc-400 hover:border-zinc-600 hover:bg-zinc-800/50 hover:text-zinc-200"
+                        ? "ui-row-selected border-l-2 border-l-[var(--color-primary)] font-medium"
+                        : "ui-tab border-l-2 border-l-transparent"
                     }`}
                   >
                     {file.path}
@@ -174,26 +176,26 @@ export function UnifiedDiffPanel({
             </div>
           )}
 
-          <div className="rounded border border-zinc-800 bg-zinc-950">
+          <div className="ui-card min-h-0 flex-1 overflow-hidden">
             <DiffFileHeader activeFile={activeFile} workingTreeScope={workingTreeScope} />
 
             {!isContentLoading && activeFile.isBinary && (
-              <p className="px-3 py-2 text-xs text-zinc-400">Binary file diff is not shown.</p>
+              <p className="px-3 py-2 text-xs text-[var(--color-text-secondary)]">Binary file diff is not shown.</p>
             )}
 
             {isContentLoading && (
-              <p className="px-3 py-2 text-xs text-zinc-400">Loading file diff…</p>
+              <p className="px-3 py-2 text-xs text-[var(--color-text-secondary)]">Loading file diff...</p>
             )}
 
             {!isContentLoading && !activeFile.isBinary && activeFile.hunks.length === 0 && (
-              <p className="px-3 py-2 text-xs text-zinc-400">No textual hunks found.</p>
+              <p className="px-3 py-2 text-xs text-[var(--color-text-secondary)]">No textual hunks found.</p>
             )}
 
             {!isContentLoading && !activeFile.isBinary && activeFile.hunks.length > 0 && (
-              <div className="max-h-[440px] overflow-auto font-mono text-xs">
+              <div className="h-full overflow-auto font-mono text-xs">
                 {activeFile.hunks.map((hunk) => (
-                  <div key={`${activeFile.path}:${hunk.header}`} className="border-b border-zinc-800/80">
-                    <div className="bg-zinc-900 px-3 py-1 text-zinc-400">{hunk.header}</div>
+                  <div key={`${activeFile.path}:${hunk.header}`} className="border-b border-[var(--color-divider)]">
+                    <div className="bg-[rgba(17,24,39,0.92)] px-3 py-1 text-[var(--color-text-secondary)]">{hunk.header}</div>
                     <div>
                       {hunk.lines.map((line, index) => (
                         <div
@@ -215,3 +217,4 @@ export function UnifiedDiffPanel({
     </section>
   );
 }
+
